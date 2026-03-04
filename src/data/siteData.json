@@ -1,8 +1,8 @@
 {
-  "title": "Positivus",
-  "description": "Positivus is a simple and minimalistic blog theme for Ghost. It is designed to be a perfect starting point for your blog project.",
+  "title": "DeskMate",
+  "description": "DeskMate is your college AI assistant. Get instant answers from official documents in English, Hindi, and Telugu — with exact citations, 24/7.",
   "image": {
-    "src": "https://github.com/manulthanura/Positivus/raw/main/public/cover.png",
-    "alt": "Positivus"
+    "src": "/og-deskmate.png",
+    "alt": "DeskMate — College AI Assistant"
   }
 }

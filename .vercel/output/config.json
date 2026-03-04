@@ -1,0 +1,129 @@
+{
+	"version": 3,
+	"routes": [
+		{
+			"src": "^/chat$",
+			"headers": {
+				"Location": "/app/chat"
+			},
+			"status": 301
+		},
+		{
+			"src": "^/pricing$",
+			"headers": {
+				"Location": "/"
+			},
+			"status": 301
+		},
+		{
+			"src": "^/services$",
+			"headers": {
+				"Location": "/"
+			},
+			"status": 301
+		},
+		{
+			"handle": "filesystem"
+		},
+		{
+			"src": "^/_astro/(.*)$",
+			"headers": {
+				"cache-control": "public, max-age=31536000, immutable"
+			},
+			"continue": true
+		},
+		{
+			"src": "^/_server-islands/([^/]+?)/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^/_image/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^/404/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^/about/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^/app/admin/documents/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^/app/admin/staff/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^/app/admin/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^/app/chat/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^/app/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^/articles/api/search\\.json/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^/articles/search/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^/articles/tag(?:/(.*?))?/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^/articles/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^/articles(?:/(.*?))?/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^/chat/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^/contact/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^/login/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^/pricing/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^/services/seo/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^/services/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^/signup/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^/$",
+			"dest": "_render"
+		},
+		{
+			"src": "^/.*$",
+			"dest": "_render",
+			"status": 404
+		}
+	]
+}

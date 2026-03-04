@@ -1,0 +1,129 @@
+---
+import MainLayout from "../../../layouts/MainLayout.astro";
+import Section from "../../../components/sections/Section.astro";
+import StaffCard from "../../../components/admin/StaffCard.astro";
+import staff from "../../../data/deskmate/staffData.json";
+---
+
+<MainLayout title="Staff Directory — DeskMate Admin" description="Manage the staff directory for DeskMate routing.">
+  <Section id="staff">
+    <div class="mt-20 mb-20">
+
+      <!-- Header -->
+      <div class="flex items-center justify-between mb-8 flex-wrap gap-4">
+        <div>
+          <p class="text-sm text-[#666] mb-1">
+            <a href="/" class="underline">Home</a> /
+            <a href="/app/admin" class="underline">Admin</a> / Staff
+          </p>
+          <h1 class="text-4xl font-medium">
+            <span class="greenhead">Staff</span> Directory
+          </h1>
+        </div>
+        <button id="open-staff-modal" class="btn-primary px-6 py-3 rounded-2xl">
+          Add Staff Member
+        </button>
+      </div>
+
+      <!-- Staff grid -->
+      <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
+        {staff.map((member) => (
+          <StaffCard
+            id={member.id}
+            name={member.name}
+            role={member.role}
+            department={member.department}
+            email={member.email}
+            phone={member.phone}
+            room={member.room}
+            hours={member.hours}
+            handles={member.handles}
+          />
+        ))}
+      </div>
+
+    </div>
+  </Section>
+</MainLayout>
+
+<!-- Add Staff Modal -->
+<div id="staff-modal" class="fixed inset-0 bg-black/60 z-[100] hidden items-center justify-center p-4">
+  <div class="bg-white rounded-[45px] shadow-[0px_5px_0px_#191a23] border border-dark max-w-lg w-full p-10 max-h-[90vh] overflow-y-auto">
+    <div class="flex justify-between items-center mb-6">
+      <h2 class="text-2xl font-medium"><span class="greenhead">Add</span> Staff Member</h2>
+      <button id="close-staff-modal" class="text-3xl text-[#666] hover:text-black leading-none">&times;</button>
+    </div>
+    <form id="staff-form" class="flex flex-col gap-4">
+      <div>
+        <label class="block text-sm font-medium mb-1">Full Name</label>
+        <input type="text" placeholder="e.g. Dr. Ramesh Kumar" class="w-full border border-dark rounded-[14px] px-4 py-3 text-sm outline-none" />
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1">Role / Designation</label>
+        <input type="text" placeholder="e.g. Fee Collection Officer" class="w-full border border-dark rounded-[14px] px-4 py-3 text-sm outline-none" />
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1">Department</label>
+        <select class="w-full border border-dark rounded-[14px] px-4 py-3 text-sm outline-none">
+          <option>Finance</option>
+          <option>Academics</option>
+          <option>Accommodation</option>
+          <option>Administration</option>
+          <option>Resources</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1">Email</label>
+        <input type="email" placeholder="email@college.edu.in" class="w-full border border-dark rounded-[14px] px-4 py-3 text-sm outline-none" />
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1">Phone</label>
+        <input type="text" placeholder="+91-40-00000000" class="w-full border border-dark rounded-[14px] px-4 py-3 text-sm outline-none" />
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1">Office Room</label>
+        <input type="text" placeholder="e.g. Admin Block, Room 104" class="w-full border border-dark rounded-[14px] px-4 py-3 text-sm outline-none" />
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1">Office Hours</label>
+        <input type="text" placeholder="e.g. Mon–Fri, 9:00 AM – 5:00 PM" class="w-full border border-dark rounded-[14px] px-4 py-3 text-sm outline-none" />
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1">Handles (comma-separated topics)</label>
+        <input type="text" placeholder="e.g. fee payment, late fine waiver" class="w-full border border-dark rounded-[14px] px-4 py-3 text-sm outline-none" />
+      </div>
+      <button type="button" id="mock-add-staff-btn" class="btn-primary w-full rounded-2xl py-4">
+        Add Staff Member
+      </button>
+    </form>
+  </div>
+</div>
+
+<script is:inline>
+  document.getElementById('open-staff-modal').addEventListener('click', function() {
+    var modal = document.getElementById('staff-modal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+  });
+
+  document.getElementById('close-staff-modal').addEventListener('click', function() {
+    var modal = document.getElementById('staff-modal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+  });
+
+  document.getElementById('staff-modal').addEventListener('click', function(e) {
+    if (e.target === this) {
+      this.classList.add('hidden');
+      this.classList.remove('flex');
+    }
+  });
+
+  document.getElementById('mock-add-staff-btn').addEventListener('click', function() {
+    alert('Staff member added successfully!\n\nIn production, this would save to the database and DeskMate would route queries to this person accordingly.');
+    var modal = document.getElementById('staff-modal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    document.getElementById('staff-form').reset();
+  });
+</script>

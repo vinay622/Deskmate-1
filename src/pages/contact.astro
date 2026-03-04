@@ -1,0 +1,54 @@
+---
+import MainLayout from "../layouts/MainLayout.astro";
+import Section from "../components/sections/Section.astro";
+import SectionTitle from "../components/ui/SectionTitle.astro";
+import Form from "../components/ui/Form.astro";
+---
+
+<MainLayout
+  title="Contact — DeskMate"
+  description="Get in touch with the DeskMate team. Questions, partnerships, or integration requests."
+>
+  <Section id="contact">
+    <div class="mt-20 mb-[140px]">
+      <SectionTitle
+        sectionTitle="Contact DeskMate"
+        description="Have a question, suggestion, or want to integrate DeskMate at your institution? We respond within 24 hours on working days."
+      />
+
+      <div class="grid lg:grid-cols-2 gap-8 items-start">
+        <!-- Form -->
+        <Form />
+
+        <!-- Contact Info -->
+        <div class="bg-dark text-gray rounded-[45px] p-10 border border-dark shadow-[0px_5px_0px_#191a23]">
+          <h3 class="text-green text-2xl font-medium mb-8">Get in Touch</h3>
+
+          <div class="flex flex-col gap-6">
+            <div>
+              <p class="text-[#555] text-xs uppercase tracking-wider mb-1">General Support</p>
+              <a href="mailto:support@deskmate.app" class="text-green underline">support@deskmate.app</a>
+            </div>
+            <div>
+              <p class="text-[#555] text-xs uppercase tracking-wider mb-1">College Partnerships</p>
+              <a href="mailto:partnerships@deskmate.app" class="text-green underline">partnerships@deskmate.app</a>
+            </div>
+            <div>
+              <p class="text-[#555] text-xs uppercase tracking-wider mb-1">Response Time</p>
+              <p class="text-[#aaa]">Within 24 hours on working days</p>
+            </div>
+          </div>
+
+          <div class="h-[1px] bg-[#2d2e3a] my-8"></div>
+
+          <div>
+            <p class="text-[#555] text-xs uppercase tracking-wider mb-3">For Colleges</p>
+            <p class="text-[#aaa] text-sm leading-relaxed">
+              DeskMate can be deployed at your institution in under a week. We handle document indexing, staff directory setup, and training for your IT team. Contact partnerships@ to get started.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </Section>
+</MainLayout>

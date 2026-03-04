@@ -11,4 +11,9 @@ export default defineConfig({
   integrations: [tailwind()],
   output: 'server',
   adapter: vercel(),
+  redirects: {
+    '/chat': '/app/chat',
+    '/pricing': '/',
+    '/services': '/',
+  },
 });

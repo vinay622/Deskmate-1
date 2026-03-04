@@ -1,0 +1,43 @@
+I'll explain your DeskMate project in clear, simple words — just the functionality, no technical jargon.
+
+---
+
+# DeskMate — What It Actually Does
+
+## The Problem
+
+Colleges in India are drowning in repetitive questions. Students spend hours hunting for basic information — fee deadlines, exam schedules, hostel rules — across notice boards, WhatsApp groups, and unresponsive email inboxes. Meanwhile, administrative staff answer the same questions hundreds of times per semester. Information exists but nobody can find it when they need it.
+
+## The Solution
+
+DeskMate is a smart assistant that lives on your phone and knows everything about your college. It reads all the official documents — PDFs, circulars, schedules, policies — and answers student questions instantly, accurately, and only from verified sources.
+
+## How It Works for Students
+
+A student opens the app, types a question in plain language like "When is the fee deadline?" or "How do I apply for hostel allotment?", and gets an answer within four seconds. Every answer shows exactly which document it came from — the specific circular and page number. If the answer isn't in the documents, the app doesn't guess. Instead, it connects the student directly to the right person — the accounts officer for fee issues, the examination cell for grade questions, the warden for hostel matters.
+
+The app works at 2 AM on Sundays. It works in English, Hindi, or Telugu. It remembers conversation context, so follow-up questions make sense. After twenty messages, it suggests starting fresh to keep responses sharp.
+
+## How It Works for Administrators
+
+College IT staff upload documents through a simple interface — drag in a PDF, add a title, pick a category, set an expiry date if relevant. The system automatically breaks the document into pieces, understands the content, and makes it searchable. Outdated documents automatically stop appearing in answers once they expire.
+
+Administrators also maintain a directory of officials — who handles what, their phone numbers, emails, office hours. When the AI can't answer, this directory ensures students reach humans who can actually help, not a generic helpline.
+
+## The Key Promise
+
+No hallucinations. No made-up answers. No "I'm sorry, I don't know" without pointing you to someone who does. Every piece of information traces back to an official college document. Every dead end leads to a human expert.
+
+## What Makes It Different
+
+Unlike generic AI chatbots that invent facts, DeskMate only knows what your college has officially published. Unlike college websites that are static and disorganized, DeskMate understands questions asked naturally and finds precise answers. Unlike WhatsApp groups full of rumors, every answer is sourced and verifiable.
+
+## Who Uses It
+
+Students get instant, reliable information without navigating bureaucracy. Parents get clarity without calling offices repeatedly. Administrative staff focus on complex problems instead of answering "Where is the fee portal?" for the hundredth time. College leadership gets a measurable reduction in repetitive inquiry load.
+
+## The Experience
+
+For students, it feels like texting a knowledgeable senior who has memorized every college circular. For administrators, it feels like having a digital filing cabinet that actually answers questions. For everyone, it removes the friction and anxiety of not knowing where to find critical information.
+
+That's DeskMate — a twenty-four-hour receptionist that never sleeps, never gets annoyed, and never gives you the wrong date because it checked the official document first.
