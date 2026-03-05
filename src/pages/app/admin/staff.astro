@@ -2,7 +2,15 @@
 import MainLayout from "../../../layouts/MainLayout.astro";
 import Section from "../../../components/sections/Section.astro";
 import StaffCard from "../../../components/admin/StaffCard.astro";
-import staff from "../../../data/deskmate/staffData.json";
+import { createSupabaseServerClient } from "../../../lib/supabase";
+
+const supabase = createSupabaseServerClient(Astro.request, Astro.cookies);
+const { data: staff } = await supabase
+  .from('staff_members')
+  .select('id, name, role, department, email, phone, room, hours, handles, created_at')
+  .order('created_at', { ascending: false });
+
+const members = staff ?? [];
 ---
 
 <MainLayout title="Staff Directory — DeskMate Admin" description="Manage the staff directory for DeskMate routing.">
@@ -25,22 +33,31 @@ import staff from "../../../data/deskmate/staffData.json";
         </button>
       </div>
 
-      <!-- Staff grid -->
-      <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {staff.map((member) => (
-          <StaffCard
-            id={member.id}
-            name={member.name}
-            role={member.role}
-            department={member.department}
-            email={member.email}
-            phone={member.phone}
-            room={member.room}
-            hours={member.hours}
-            handles={member.handles}
-          />
-        ))}
-      </div>
+      <!-- Staff grid / empty state -->
+      {members.length > 0 ? (
+        <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-5" id="staff-grid">
+          {members.map((member) => (
+            <div class="staff-item" data-staff-id={member.id}>
+              <StaffCard
+                id={member.id}
+                name={member.name}
+                role={member.role}
+                department={member.department}
+                email={member.email ?? ''}
+                phone={member.phone ?? ''}
+                room={member.room ?? ''}
+                hours={member.hours ?? ''}
+                handles={member.handles ?? []}
+              />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div id="staff-grid" class="text-center py-20 text-[#aaa]">
+          <p class="text-lg">No staff members yet.</p>
+          <p class="text-sm mt-1">Click <strong>Add Staff Member</strong> to get started.</p>
+        </div>
+      )}
 
     </div>
   </Section>
@@ -53,18 +70,19 @@ import staff from "../../../data/deskmate/staffData.json";
       <h2 class="text-2xl font-medium"><span class="greenhead">Add</span> Staff Member</h2>
       <button id="close-staff-modal" class="text-3xl text-[#666] hover:text-black leading-none">&times;</button>
     </div>
+    <div id="staff-error" class="hidden mb-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded-[14px] px-4 py-3"></div>
     <form id="staff-form" class="flex flex-col gap-4">
       <div>
         <label class="block text-sm font-medium mb-1">Full Name</label>
-        <input type="text" placeholder="e.g. Dr. Ramesh Kumar" class="w-full border border-dark rounded-[14px] px-4 py-3 text-sm outline-none" />
+        <input id="staff-name" type="text" placeholder="e.g. Dr. Ramesh Kumar" class="w-full border border-dark rounded-[14px] px-4 py-3 text-sm outline-none" />
       </div>
       <div>
         <label class="block text-sm font-medium mb-1">Role / Designation</label>
-        <input type="text" placeholder="e.g. Fee Collection Officer" class="w-full border border-dark rounded-[14px] px-4 py-3 text-sm outline-none" />
+        <input id="staff-role" type="text" placeholder="e.g. Fee Collection Officer" class="w-full border border-dark rounded-[14px] px-4 py-3 text-sm outline-none" />
       </div>
       <div>
         <label class="block text-sm font-medium mb-1">Department</label>
-        <select class="w-full border border-dark rounded-[14px] px-4 py-3 text-sm outline-none">
+        <select id="staff-dept" class="w-full border border-dark rounded-[14px] px-4 py-3 text-sm outline-none">
           <option>Finance</option>
           <option>Academics</option>
           <option>Accommodation</option>
@@ -73,26 +91,26 @@ import staff from "../../../data/deskmate/staffData.json";
         </select>
       </div>
       <div>
-        <label class="block text-sm font-medium mb-1">Email</label>
-        <input type="email" placeholder="email@college.edu.in" class="w-full border border-dark rounded-[14px] px-4 py-3 text-sm outline-none" />
+        <label class="block text-sm font-medium mb-1">Email <span class="font-normal text-[#aaa]">(optional)</span></label>
+        <input id="staff-email" type="email" placeholder="email@college.edu.in" class="w-full border border-dark rounded-[14px] px-4 py-3 text-sm outline-none" />
       </div>
       <div>
-        <label class="block text-sm font-medium mb-1">Phone</label>
-        <input type="text" placeholder="+91-40-00000000" class="w-full border border-dark rounded-[14px] px-4 py-3 text-sm outline-none" />
+        <label class="block text-sm font-medium mb-1">Phone <span class="font-normal text-[#aaa]">(optional)</span></label>
+        <input id="staff-phone" type="text" placeholder="+91-40-00000000" class="w-full border border-dark rounded-[14px] px-4 py-3 text-sm outline-none" />
       </div>
       <div>
-        <label class="block text-sm font-medium mb-1">Office Room</label>
-        <input type="text" placeholder="e.g. Admin Block, Room 104" class="w-full border border-dark rounded-[14px] px-4 py-3 text-sm outline-none" />
+        <label class="block text-sm font-medium mb-1">Office Room <span class="font-normal text-[#aaa]">(optional)</span></label>
+        <input id="staff-room" type="text" placeholder="e.g. Admin Block, Room 104" class="w-full border border-dark rounded-[14px] px-4 py-3 text-sm outline-none" />
       </div>
       <div>
-        <label class="block text-sm font-medium mb-1">Office Hours</label>
-        <input type="text" placeholder="e.g. Mon–Fri, 9:00 AM – 5:00 PM" class="w-full border border-dark rounded-[14px] px-4 py-3 text-sm outline-none" />
+        <label class="block text-sm font-medium mb-1">Office Hours <span class="font-normal text-[#aaa]">(optional)</span></label>
+        <input id="staff-hours" type="text" placeholder="e.g. Mon–Fri, 9 AM – 5 PM" class="w-full border border-dark rounded-[14px] px-4 py-3 text-sm outline-none" />
       </div>
       <div>
-        <label class="block text-sm font-medium mb-1">Handles (comma-separated topics)</label>
-        <input type="text" placeholder="e.g. fee payment, late fine waiver" class="w-full border border-dark rounded-[14px] px-4 py-3 text-sm outline-none" />
+        <label class="block text-sm font-medium mb-1">Handles <span class="font-normal text-[#aaa]">(comma-separated, optional)</span></label>
+        <input id="staff-handles" type="text" placeholder="e.g. fee payment, fine waiver" class="w-full border border-dark rounded-[14px] px-4 py-3 text-sm outline-none" />
       </div>
-      <button type="button" id="mock-add-staff-btn" class="btn-primary w-full rounded-2xl py-4">
+      <button type="button" id="submit-staff-btn" class="btn-primary w-full rounded-2xl py-4">
         Add Staff Member
       </button>
     </form>
@@ -100,30 +118,75 @@ import staff from "../../../data/deskmate/staffData.json";
 </div>
 
 <script is:inline>
-  document.getElementById('open-staff-modal').addEventListener('click', function() {
-    var modal = document.getElementById('staff-modal');
-    modal.classList.remove('hidden');
-    modal.classList.add('flex');
-  });
-
-  document.getElementById('close-staff-modal').addEventListener('click', function() {
-    var modal = document.getElementById('staff-modal');
-    modal.classList.add('hidden');
-    modal.classList.remove('flex');
-  });
-
-  document.getElementById('staff-modal').addEventListener('click', function(e) {
-    if (e.target === this) {
-      this.classList.add('hidden');
-      this.classList.remove('flex');
-    }
-  });
-
-  document.getElementById('mock-add-staff-btn').addEventListener('click', function() {
-    alert('Staff member added successfully!\n\nIn production, this would save to the database and DeskMate would route queries to this person accordingly.');
-    var modal = document.getElementById('staff-modal');
-    modal.classList.add('hidden');
-    modal.classList.remove('flex');
+  // ─── Modal helpers ───
+  function openStaffModal() {
+    var m = document.getElementById('staff-modal');
+    m.classList.remove('hidden'); m.classList.add('flex');
+  }
+  function closeStaffModal() {
+    var m = document.getElementById('staff-modal');
+    m.classList.add('hidden'); m.classList.remove('flex');
     document.getElementById('staff-form').reset();
+    document.getElementById('staff-error').classList.add('hidden');
+  }
+  document.getElementById('open-staff-modal').addEventListener('click', openStaffModal);
+  document.getElementById('close-staff-modal').addEventListener('click', closeStaffModal);
+  document.getElementById('staff-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeStaffModal();
+  });
+
+  // ─── Submit ───
+  document.getElementById('submit-staff-btn').addEventListener('click', async function() {
+    var btn = this;
+    var name = document.getElementById('staff-name').value.trim();
+    var role = document.getElementById('staff-role').value.trim();
+    var dept = document.getElementById('staff-dept').value;
+    var email = document.getElementById('staff-email').value.trim();
+    var phone = document.getElementById('staff-phone').value.trim();
+    var room = document.getElementById('staff-room').value.trim();
+    var hours = document.getElementById('staff-hours').value.trim();
+    var handles = document.getElementById('staff-handles').value.trim();
+    var errEl = document.getElementById('staff-error');
+
+    if (!name || !role) {
+      errEl.textContent = 'Name and role are required.';
+      errEl.classList.remove('hidden');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Adding…';
+
+    try {
+      var res = await fetch('/api/admin/staff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name, role: role, department: dept, email: email, phone: phone, room: room, hours: hours, handles: handles }),
+      });
+      var data = await res.json();
+      if (data.ok) { closeStaffModal(); window.location.reload(); }
+      else { errEl.textContent = data.error || 'Failed to add.'; errEl.classList.remove('hidden'); }
+    } catch(e) {
+      errEl.textContent = 'Network error. Please try again.';
+      errEl.classList.remove('hidden');
+    }
+    btn.disabled = false;
+    btn.textContent = 'Add Staff Member';
+  });
+
+  // ─── Remove ───
+  document.addEventListener('click', async function(e) {
+    var btn = e.target.closest('[data-action="delete-staff"]');
+    if (!btn) return;
+    var wrapper = btn.closest('[data-staff-id]');
+    if (!wrapper) return;
+    if (!confirm('Remove this staff member?')) return;
+    btn.disabled = true;
+    try {
+      var res = await fetch('/api/admin/staff/' + wrapper.dataset.staffId, { method: 'DELETE' });
+      var data = await res.json();
+      if (data.ok) { wrapper.remove(); }
+      else { alert('Delete failed: ' + (data.error || 'unknown error')); btn.disabled = false; }
+    } catch(e) { alert('Network error.'); btn.disabled = false; }
   });
 </script>

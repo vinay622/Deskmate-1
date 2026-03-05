@@ -118,6 +118,12 @@ import AuthLayout from "../layouts/AuthLayout.astro";
             <p class="text-[#888] text-sm">Takes under a minute. No credit card needed.</p>
           </div>
 
+          <!-- Error banner (hidden by default) -->
+          <div id="signup-error-banner" class="hidden mb-5 bg-red-50 border border-red-200 text-red-700 rounded-[14px] px-4 py-3 text-sm flex items-center gap-2">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <span id="signup-error-message"></span>
+          </div>
+
           <!-- Role selector -->
           <div class="mb-7">
             <p class="text-sm font-medium text-dark mb-2.5">I am a</p>
@@ -130,17 +136,10 @@ import AuthLayout from "../layouts/AuthLayout.astro";
                 </div>
               </label>
               <label class="flex-1 cursor-pointer">
-                <input type="radio" name="role" value="staff" class="sr-only peer" />
+                <input type="radio" name="role" value="admin" class="sr-only peer" />
                 <div class="border-2 border-[#e0e0e0] peer-checked:border-dark peer-checked:bg-dark rounded-[14px] p-3.5 text-center transition-all duration-200">
                   <div class="text-xl mb-1">🧑‍💼</div>
                   <p class="text-sm font-medium text-[#888] peer-checked:text-white transition-colors">Staff / Admin</p>
-                </div>
-              </label>
-              <label class="flex-1 cursor-pointer">
-                <input type="radio" name="role" value="parent" class="sr-only peer" />
-                <div class="border-2 border-[#e0e0e0] peer-checked:border-dark peer-checked:bg-dark rounded-[14px] p-3.5 text-center transition-all duration-200">
-                  <div class="text-xl mb-1">👨‍👩‍👦</div>
-                  <p class="text-sm font-medium text-[#888] peer-checked:text-white transition-colors">Parent</p>
                 </div>
               </label>
             </div>
@@ -258,6 +257,24 @@ import AuthLayout from "../layouts/AuthLayout.astro";
               <p id="match-label" class="text-[10px] text-[#bbb] hidden"></p>
             </div>
 
+            <!-- Admin Access Code (shown only for admin role) -->
+            <div id="access-code-field" class="hidden flex flex-col gap-1.5">
+              <label class="text-xs font-medium text-dark uppercase tracking-wide" for="access-code">Admin Access Code</label>
+              <div class="relative">
+                <span class="absolute left-4 top-1/2 -translate-y-1/2 text-[#aaa]">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><circle cx="12" cy="16" r="1" fill="currentColor"/></svg>
+                </span>
+                <input
+                  type="text"
+                  id="access-code"
+                  name="access_code"
+                  placeholder="e.g. JNTU-ADMIN-9X72"
+                  class="w-full pl-10 pr-4 py-3.5 border border-[#e0e0e0] rounded-[14px] text-dark text-sm outline-none focus:border-dark transition-all uppercase tracking-wider"
+                />
+              </div>
+              <p class="text-[10px] text-[#aaa] leading-relaxed">Provided by your institution. Each code can only be used once.</p>
+            </div>
+
             <!-- Terms -->
             <div class="flex items-start gap-2.5 mt-1">
               <input type="checkbox" id="terms" name="terms" required class="w-4 h-4 mt-0.5 rounded border-[#ccc] accent-dark cursor-pointer shrink-0" />
@@ -346,6 +363,20 @@ import AuthLayout from "../layouts/AuthLayout.astro";
     label.style.color = val.length === 0 ? '#bbb' : colors[score - 1] || '#ef4444';
   }
 
+  // Show/hide admin access code field based on role selection
+  document.querySelectorAll('input[name="role"]').forEach(function(radio) {
+    radio.addEventListener('change', function() {
+      var codeField = document.getElementById('access-code-field');
+      var codeInput = document.getElementById('access-code');
+      if (this.value === 'admin') {
+        codeField.classList.remove('hidden');
+      } else {
+        codeField.classList.add('hidden');
+        codeInput.value = '';
+      }
+    });
+  });
+
   // Password match check
   document.getElementById('confirm-password').addEventListener('input', function() {
     var pw = document.getElementById('signup-password').value;
@@ -360,13 +391,20 @@ import AuthLayout from "../layouts/AuthLayout.astro";
     }
   });
 
-  // Form submit (mock)
+  // Form submit — real Supabase auth via fetch
   function handleSignup(e) {
     e.preventDefault();
     var pw = document.getElementById('signup-password').value;
     var cpw = document.getElementById('confirm-password').value;
+    var errorBanner = document.getElementById('signup-error-banner');
+    var errorMsg = document.getElementById('signup-error-message');
+
+    errorBanner.classList.add('hidden');
+
     if (pw !== cpw) {
       document.getElementById('confirm-password').style.borderColor = '#ef4444';
+      errorMsg.textContent = 'Passwords do not match.';
+      errorBanner.classList.remove('hidden');
       return;
     }
 
@@ -380,8 +418,34 @@ import AuthLayout from "../layouts/AuthLayout.astro";
     arrow.classList.add('hidden');
     spinner.classList.remove('hidden');
 
-    setTimeout(function() {
-      window.location.href = '/app/chat';
-    }, 1400);
+    var form = document.getElementById('signup-form');
+    var formData = new FormData(form);
+
+    // Append selected role (radio button may not be included in FormData if sr-only)
+    var selectedRole = document.querySelector('input[name="role"]:checked');
+    if (selectedRole) formData.set('role', selectedRole.value);
+
+    fetch('/api/auth/signup', { method: 'POST', body: formData })
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        if (data.ok) {
+          window.location.href = data.redirect;
+        } else {
+          errorMsg.textContent = data.error || 'Sign up failed. Please try again.';
+          errorBanner.classList.remove('hidden');
+          btn.disabled = false;
+          text.textContent = 'Create Account';
+          arrow.classList.remove('hidden');
+          spinner.classList.add('hidden');
+        }
+      })
+      .catch(function() {
+        errorMsg.textContent = 'Network error. Please check your connection.';
+        errorBanner.classList.remove('hidden');
+        btn.disabled = false;
+        text.textContent = 'Create Account';
+        arrow.classList.remove('hidden');
+        spinner.classList.add('hidden');
+      });
   }
 </script>

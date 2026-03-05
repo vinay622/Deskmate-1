@@ -19,3 +19,15 @@ pnpm-debug.log*
 
 # macOS-specific files
 .DS_Store
+
+# Vercel build output
+.vercel/
+
+# MCP config
+.mcp.json
+
+# Temp files
+tmpclaude-*
+nul
+
+skills/

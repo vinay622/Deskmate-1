@@ -6,6 +6,10 @@ import AccordionItem from "../components/ui/AccordionItem.astro";
 import Testimonials from "../components/sections/Testimonials.astro";
 import Card from "../components/ui/Card.astro";
 
+const user = Astro.locals.user;
+const fullName = Astro.locals.userName ?? '';
+const firstName = fullName.split(' ')[0] || '';
+
 const features = [
   {
     title: "Document-Grounded Answers",
@@ -72,7 +76,11 @@ const howItWorks = [
     <div class="mt-20 mb-[80px]">
       <div class="flex flex-col items-center text-center">
         <div class="mb-6">
-          <span class="greenhead text-sm uppercase tracking-widest">College AI Assistant</span>
+          {user && firstName ? (
+            <span class="greenhead text-sm uppercase tracking-widest">Welcome back, {firstName}</span>
+          ) : (
+            <span class="greenhead text-sm uppercase tracking-widest">College AI Assistant</span>
+          )}
         </div>
         <h1 class="text-4xl sm:text-5xl lg:text-6xl font-medium leading-tight mb-6 max-w-4xl">
           Your College <span class="greenhead">Knowledge Base</span> Answers in Seconds

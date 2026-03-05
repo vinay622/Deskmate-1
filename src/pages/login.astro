@@ -1,5 +1,6 @@
 ---
 import AuthLayout from "../layouts/AuthLayout.astro";
+const next = Astro.url.searchParams.get("next") ?? "";
 ---
 
 <AuthLayout
@@ -123,6 +124,12 @@ import AuthLayout from "../layouts/AuthLayout.astro";
           <p class="text-[#888] text-sm">Access your college's knowledge base instantly.</p>
         </div>
 
+        <!-- Error banner (hidden by default) -->
+        <div id="error-banner" class="hidden mb-6 bg-red-50 border border-red-200 text-red-700 rounded-[14px] px-4 py-3 text-sm flex items-center gap-2">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <span id="error-message"></span>
+        </div>
+
         <!-- Role tabs -->
         <div class="flex gap-2 mb-8 bg-[#f3f3f3] rounded-[14px] p-1.5">
           <button id="tab-student" onclick="switchTab('student')" class="flex-1 py-2.5 px-4 rounded-[10px] text-sm font-medium transition-all duration-200 bg-dark text-white shadow-sm">
@@ -135,6 +142,7 @@ import AuthLayout from "../layouts/AuthLayout.astro";
 
         <!-- Form -->
         <form id="login-form" class="flex flex-col gap-5" onsubmit="handleLogin(event)">
+          <input type="hidden" name="next" value={next} />
 
           <!-- Email -->
           <div class="flex flex-col gap-1.5">
@@ -284,21 +292,48 @@ import AuthLayout from "../layouts/AuthLayout.astro";
     }
   });
 
-  // Form submit (mock)
+  // Form submit — real Supabase auth via fetch
   function handleLogin(e) {
     e.preventDefault();
     var btn = document.getElementById('submit-btn');
     var text = document.getElementById('btn-text');
     var arrow = document.getElementById('btn-arrow');
     var spinner = document.getElementById('btn-spinner');
+    var errorBanner = document.getElementById('error-banner');
+    var errorMsg = document.getElementById('error-message');
+
+    // Hide previous error
+    errorBanner.classList.add('hidden');
 
     btn.disabled = true;
     text.textContent = 'Signing in...';
     arrow.classList.add('hidden');
     spinner.classList.remove('hidden');
 
-    setTimeout(function() {
-      window.location.href = '/app/chat';
-    }, 1200);
+    var form = document.getElementById('login-form');
+    var formData = new FormData(form);
+
+    fetch('/api/auth/login', { method: 'POST', body: formData })
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        if (data.ok) {
+          window.location.href = data.redirect;
+        } else {
+          errorMsg.textContent = data.error || 'Sign in failed. Please try again.';
+          errorBanner.classList.remove('hidden');
+          btn.disabled = false;
+          text.textContent = 'Sign In';
+          arrow.classList.remove('hidden');
+          spinner.classList.add('hidden');
+        }
+      })
+      .catch(function() {
+        errorMsg.textContent = 'Network error. Please check your connection.';
+        errorBanner.classList.remove('hidden');
+        btn.disabled = false;
+        text.textContent = 'Sign In';
+        arrow.classList.remove('hidden');
+        spinner.classList.add('hidden');
+      });
   }
 </script>

@@ -2,7 +2,15 @@
 import MainLayout from "../../../layouts/MainLayout.astro";
 import Section from "../../../components/sections/Section.astro";
 import DocumentCard from "../../../components/admin/DocumentCard.astro";
-import documents from "../../../data/deskmate/documentsData.json";
+import { createSupabaseServerClient } from "../../../lib/supabase";
+
+const supabase = createSupabaseServerClient(Astro.request, Astro.cookies);
+const { data: documents } = await supabase
+  .from('documents')
+  .select('id, name, category, description, uploaded_by_name, expiry_date, status, created_at')
+  .order('created_at', { ascending: false });
+
+const docs = documents ?? [];
 ---
 
 <MainLayout title="Document Management — DeskMate Admin" description="Upload and manage college documents for DeskMate.">
@@ -21,14 +29,14 @@ import documents from "../../../data/deskmate/documentsData.json";
           </h1>
         </div>
         <button id="open-upload-modal" class="btn-primary px-6 py-3 rounded-2xl">
-          Upload Document
+          Add Document
         </button>
       </div>
 
       <!-- Filter bar -->
       <div class="flex gap-3 mb-6 flex-wrap">
         <button class="filter-btn text-sm px-4 py-2 rounded-full bg-dark text-white" data-filter="all">
-          All ({documents.length})
+          All (<span id="doc-total">{docs.length}</span>)
         </button>
         <button class="filter-btn text-sm px-4 py-2 rounded-full border border-dark hover:bg-dark hover:text-white transition-colors" data-filter="Finance">Finance</button>
         <button class="filter-btn text-sm px-4 py-2 rounded-full border border-dark hover:bg-dark hover:text-white transition-colors" data-filter="Academics">Academics</button>
@@ -37,21 +45,25 @@ import documents from "../../../data/deskmate/documentsData.json";
         <button class="filter-btn text-sm px-4 py-2 rounded-full border border-dark hover:bg-dark hover:text-white transition-colors" data-filter="General">General</button>
       </div>
 
-      <!-- Documents grid -->
+      <!-- Documents grid / empty state -->
       <div class="grid lg:grid-cols-2 gap-5" id="doc-grid">
-        {documents.map((doc) => (
-          <div class="doc-item" data-category={doc.category}>
+        {docs.length === 0 && (
+          <div id="empty-state" class="lg:col-span-2 text-center py-20 text-[#aaa]">
+            <p class="text-lg">No documents yet.</p>
+            <p class="text-sm mt-1">Click <strong>Add Document</strong> to get started.</p>
+          </div>
+        )}
+        {docs.map((doc) => (
+          <div class="doc-item" data-category={doc.category} data-doc-id={doc.id}>
             <DocumentCard
               id={doc.id}
               name={doc.name}
               category={doc.category}
-              uploadedBy={doc.uploadedBy}
-              uploadedAt={doc.uploadedAt}
-              expiryDate={doc.expiryDate}
-              pages={doc.pages}
-              size={doc.size}
+              uploadedByName={doc.uploaded_by_name ?? ''}
+              createdAt={doc.created_at}
+              expiryDate={doc.expiry_date ?? null}
               status={doc.status as 'active' | 'expiring' | 'expired'}
-              description={doc.description}
+              description={doc.description ?? ''}
             />
           </div>
         ))}
@@ -61,25 +73,22 @@ import documents from "../../../data/deskmate/documentsData.json";
   </Section>
 </MainLayout>
 
-<!-- Upload Modal -->
+<!-- Add Document Modal -->
 <div id="upload-modal" class="fixed inset-0 bg-black/60 z-[100] hidden items-center justify-center p-4">
   <div class="bg-white rounded-[45px] shadow-[0px_5px_0px_#191a23] border border-dark max-w-lg w-full p-10">
     <div class="flex justify-between items-center mb-6">
-      <h2 class="text-2xl font-medium"><span class="greenhead">Upload</span> Document</h2>
+      <h2 class="text-2xl font-medium"><span class="greenhead">Add</span> Document</h2>
       <button id="close-modal" class="text-3xl text-[#666] hover:text-black leading-none">&times;</button>
     </div>
+    <div id="upload-error" class="hidden mb-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded-[14px] px-4 py-3"></div>
     <form id="upload-form" class="flex flex-col gap-4">
       <div>
-        <label class="block text-sm font-medium mb-1">Document File (PDF)</label>
-        <input type="file" accept=".pdf" class="w-full border border-dark rounded-[14px] px-4 py-3 text-sm" />
-      </div>
-      <div>
-        <label class="block text-sm font-medium mb-1">Title / Display Name</label>
-        <input type="text" placeholder="e.g. Fee Structure 2024-25.pdf" class="w-full border border-dark rounded-[14px] px-4 py-3 text-sm outline-none" />
+        <label class="block text-sm font-medium mb-1">Document Name</label>
+        <input id="doc-name" type="text" placeholder="e.g. Fee Structure 2024-25" class="w-full border border-dark rounded-[14px] px-4 py-3 text-sm outline-none" />
       </div>
       <div>
         <label class="block text-sm font-medium mb-1">Category</label>
-        <select class="w-full border border-dark rounded-[14px] px-4 py-3 text-sm outline-none">
+        <select id="doc-category" class="w-full border border-dark rounded-[14px] px-4 py-3 text-sm outline-none">
           <option>Finance</option>
           <option>Academics</option>
           <option>Accommodation</option>
@@ -88,69 +97,107 @@ import documents from "../../../data/deskmate/documentsData.json";
         </select>
       </div>
       <div>
-        <label class="block text-sm font-medium mb-1">Expiry Date</label>
-        <input type="date" class="w-full border border-dark rounded-[14px] px-4 py-3 text-sm outline-none" />
+        <label class="block text-sm font-medium mb-1">Expiry Date <span class="font-normal text-[#aaa]">(optional)</span></label>
+        <input id="doc-expiry" type="date" class="w-full border border-dark rounded-[14px] px-4 py-3 text-sm outline-none" />
       </div>
       <div>
-        <label class="block text-sm font-medium mb-1">Description (optional)</label>
-        <textarea class="w-full border border-dark rounded-[14px] px-4 py-3 text-sm outline-none resize-none" rows="2"></textarea>
+        <label class="block text-sm font-medium mb-1">Description <span class="font-normal text-[#aaa]">(optional)</span></label>
+        <textarea id="doc-description" class="w-full border border-dark rounded-[14px] px-4 py-3 text-sm outline-none resize-none" rows="2"></textarea>
       </div>
-      <button type="button" id="mock-upload-btn" class="btn-primary w-full rounded-2xl py-4">
-        Upload Document
+      <button type="button" id="submit-upload-btn" class="btn-primary w-full rounded-2xl py-4">
+        Add Document
       </button>
     </form>
   </div>
 </div>
 
 <script is:inline>
-  // Modal open/close
-  document.getElementById('open-upload-modal').addEventListener('click', function() {
-    var modal = document.getElementById('upload-modal');
-    modal.classList.remove('hidden');
-    modal.classList.add('flex');
-  });
-
-  document.getElementById('close-modal').addEventListener('click', function() {
-    var modal = document.getElementById('upload-modal');
-    modal.classList.add('hidden');
-    modal.classList.remove('flex');
-  });
-
-  document.getElementById('upload-modal').addEventListener('click', function(e) {
-    if (e.target === this) {
-      this.classList.add('hidden');
-      this.classList.remove('flex');
-    }
-  });
-
-  // Mock upload success
-  document.getElementById('mock-upload-btn').addEventListener('click', function() {
-    alert('Document uploaded successfully!\n\nIn production, this would process and index the PDF for AI queries.');
-    var modal = document.getElementById('upload-modal');
-    modal.classList.add('hidden');
-    modal.classList.remove('flex');
+  // ─── Modal helpers ───
+  function openModal() {
+    var m = document.getElementById('upload-modal');
+    m.classList.remove('hidden'); m.classList.add('flex');
+  }
+  function closeModal() {
+    var m = document.getElementById('upload-modal');
+    m.classList.add('hidden'); m.classList.remove('flex');
     document.getElementById('upload-form').reset();
+    document.getElementById('upload-error').classList.add('hidden');
+  }
+  document.getElementById('open-upload-modal').addEventListener('click', openModal);
+  document.getElementById('close-modal').addEventListener('click', closeModal);
+  document.getElementById('upload-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
   });
 
-  // Filter buttons
+  // ─── Submit ───
+  document.getElementById('submit-upload-btn').addEventListener('click', async function() {
+    var btn = this;
+    var name = document.getElementById('doc-name').value.trim();
+    var category = document.getElementById('doc-category').value;
+    var expiry = document.getElementById('doc-expiry').value;
+    var description = document.getElementById('doc-description').value.trim();
+    var errEl = document.getElementById('upload-error');
+
+    if (!name) {
+      errEl.textContent = 'Document name is required.';
+      errEl.classList.remove('hidden');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Adding…';
+
+    try {
+      var res = await fetch('/api/admin/documents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name, category: category, expiry_date: expiry || null, description: description }),
+      });
+      var data = await res.json();
+      if (data.ok) { closeModal(); window.location.reload(); }
+      else { errEl.textContent = data.error || 'Failed to add.'; errEl.classList.remove('hidden'); }
+    } catch(e) {
+      errEl.textContent = 'Network error. Please try again.';
+      errEl.classList.remove('hidden');
+    }
+    btn.disabled = false;
+    btn.textContent = 'Add Document';
+  });
+
+  // ─── Delete ───
+  document.addEventListener('click', async function(e) {
+    var btn = e.target.closest('[data-action="delete-doc"]');
+    if (!btn) return;
+    var wrapper = btn.closest('[data-doc-id]');
+    if (!wrapper) return;
+    if (!confirm('Remove this document?')) return;
+    btn.disabled = true;
+    try {
+      var res = await fetch('/api/admin/documents/' + wrapper.dataset.docId, { method: 'DELETE' });
+      var data = await res.json();
+      if (data.ok) {
+        wrapper.remove();
+        var t = document.getElementById('doc-total');
+        if (t) t.textContent = String(parseInt(t.textContent) - 1);
+      } else {
+        alert('Delete failed: ' + (data.error || 'unknown error'));
+        btn.disabled = false;
+      }
+    } catch(e) { alert('Network error.'); btn.disabled = false; }
+  });
+
+  // ─── Filter ───
   document.querySelectorAll('.filter-btn').forEach(function(btn) {
     btn.addEventListener('click', function() {
       var filter = btn.dataset.filter;
-
       document.querySelectorAll('.filter-btn').forEach(function(b) {
         b.classList.remove('bg-dark', 'text-white');
         b.classList.add('border', 'border-dark');
       });
-
       btn.classList.add('bg-dark', 'text-white');
       btn.classList.remove('border', 'border-dark');
-
       document.querySelectorAll('.doc-item').forEach(function(item) {
-        if (filter === 'all' || item.dataset.category === filter) {
-          item.style.display = '';
-        } else {
-          item.style.display = 'none';
-        }
+        item.style.display = (filter === 'all' || item.dataset.category === filter) ? '' : 'none';
       });
     });
   });

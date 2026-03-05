@@ -1,6 +1,19 @@
 ---
 import demoResponses from '../../data/deskmate/demoResponses.json';
 
+interface Props {
+  userName?: string;
+  userEmail?: string;
+  userRole?: 'student' | 'admin' | null;
+}
+
+const {
+  userName = 'Student',
+  userEmail = '',
+  userRole = 'student',
+} = Astro.props;
+
+const userInitial = userName.charAt(0).toUpperCase();
 const responsesJSON = JSON.stringify(demoResponses);
 ---
 
@@ -42,15 +55,17 @@ const responsesJSON = JSON.stringify(demoResponses);
     <div class="px-4 py-4 border-t border-[#e8eaed]">
       <div class="flex items-center gap-3">
         <div class="w-8 h-8 rounded-full bg-dark flex items-center justify-center shrink-0">
-          <span class="text-[#b9ff66] text-xs font-semibold">S</span>
+          <span class="text-[#b9ff66] text-xs font-semibold">{userInitial}</span>
         </div>
         <div class="flex-1 min-w-0">
-          <p class="text-xs font-medium text-dark truncate">Student</p>
-          <p class="text-[10px] text-[#aaa] truncate">student@college.edu.in</p>
+          <p class="text-xs font-medium text-dark truncate">{userName}</p>
+          <p class="text-[10px] text-[#aaa] truncate">{userEmail || (userRole === 'admin' ? 'Admin' : 'Student')}</p>
         </div>
-        <a href="/" class="p-1.5 rounded-lg hover:bg-[#ececec] text-[#aaa] hover:text-dark transition-colors" title="Back to home">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-        </a>
+        <form method="post" action="/api/auth/logout">
+          <button type="submit" class="p-1.5 rounded-lg hover:bg-[#ececec] text-[#aaa] hover:text-dark transition-colors" title="Sign out">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          </button>
+        </form>
       </div>
     </div>
   </aside>
@@ -448,54 +463,57 @@ const responsesJSON = JSON.stringify(demoResponses);
     return outer;
   }
 
-  // ─── Session management (localStorage) ───
-  var SESSIONS_KEY = 'dm_sessions';
-  var SESSION_PREFIX = 'dm_sess_';
-
-  function getSessions() {
-    try {
-      return JSON.parse(localStorage.getItem(SESSIONS_KEY) || '[]');
-    } catch(e) { return []; }
-  }
-
-  function saveSession(session) {
-    try {
-      var sessions = getSessions().filter(function(s) { return s.id !== session.id; });
-      sessions.unshift(session);
-      if (sessions.length > 10) sessions = sessions.slice(0, 10);
-      localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
-    } catch(e) {}
-  }
-
-  function getSessionMessages(sessionId) {
-    try {
-      return JSON.parse(localStorage.getItem(SESSION_PREFIX + sessionId) || '[]');
-    } catch(e) { return []; }
-  }
-
-  function appendSessionMessage(sessionId, msg) {
-    try {
-      var msgs = getSessionMessages(sessionId);
-      msgs.push(msg);
-      localStorage.setItem(SESSION_PREFIX + sessionId, JSON.stringify(msgs));
-    } catch(e) {}
-  }
-
-  function generateId() {
-    return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-  }
-
+  // ─── Session management (Supabase API) ───
   function truncate(str, n) {
     return str.length > n ? str.slice(0, n) + '…' : str;
   }
 
+  async function getSessions() {
+    try {
+      var r = await fetch('/api/chat/sessions');
+      if (!r.ok) return [];
+      var d = await r.json();
+      return d.sessions || [];
+    } catch(e) { return []; }
+  }
+
+  async function createSession(title) {
+    try {
+      var r = await fetch('/api/chat/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: title })
+      });
+      var d = await r.json();
+      return d.session || null;
+    } catch(e) { return null; }
+  }
+
+  async function getSessionMessages(sessionId) {
+    try {
+      var r = await fetch('/api/chat/messages/' + sessionId);
+      if (!r.ok) return [];
+      var d = await r.json();
+      return d.messages || [];
+    } catch(e) { return []; }
+  }
+
+  async function postMessage(sessionId, role, content, meta) {
+    try {
+      await fetch('/api/chat/messages/' + sessionId, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: role, content: content, meta: meta || {} })
+      });
+    } catch(e) {}
+  }
+
   // ─── Render sidebar recent conversations ───
-  function renderRecentChats() {
-    var sessions = getSessions();
+  async function renderRecentChats() {
+    var sessions = await getSessions();
     var container = document.getElementById('recent-chats-list');
     var noMsg = document.getElementById('no-history-msg');
 
-    // Remove old dynamic items (keep no-history-msg)
     var oldItems = container.querySelectorAll('.recent-chat-item');
     oldItems.forEach(function(el) { el.remove(); });
 
@@ -511,7 +529,7 @@ const responsesJSON = JSON.stringify(demoResponses);
       item.dataset.sessionId = sess.id;
       item.innerHTML = '<svg class="shrink-0 mt-0.5" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#aaa" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>'
         + '<div class="flex-1 min-w-0"><p class="text-xs text-dark truncate leading-tight">' + truncate(sess.title, 36) + '</p>'
-        + '<p class="text-[10px] text-[#bbb] mt-0.5">' + formatRelativeTime(sess.ts) + '</p></div>';
+        + '<p class="text-[10px] text-[#bbb] mt-0.5">' + formatRelativeTime(new Date(sess.created_at).getTime()) + '</p></div>';
       item.addEventListener('click', function() {
         loadSession(sess.id);
       });
@@ -531,45 +549,44 @@ const responsesJSON = JSON.stringify(demoResponses);
   }
 
   // ─── Load a past session ───
-  function loadSession(sessionId) {
+  async function loadSession(sessionId) {
     currentSessionId = sessionId;
-    var msgs = getSessionMessages(sessionId);
+    var msgs = await getSessionMessages(sessionId);
     var list = document.getElementById('message-list');
     list.innerHTML = '';
 
     msgs.forEach(function(msg) {
-      var el = createBubble(msg.role, msg.content, msg.ts, msg.meta || {});
-      el.classList.remove('msg-appear'); // no animation when restoring
+      var ts = new Date(msg.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+      var el = createBubble(msg.role, msg.content, ts, msg.meta || {});
+      el.classList.remove('msg-appear');
       list.appendChild(el);
     });
 
     list.scrollTo({ top: list.scrollHeight, behavior: 'auto' });
-    renderRecentChats();
+    await renderRecentChats();
 
     // Close sidebar on mobile
     document.getElementById('sidebar').classList.remove('open');
   }
 
   // ─── Append message ───
-  function appendMessage(role, content, meta) {
+  async function appendMessage(role, content, meta) {
     // Remove welcome screen if present
     var screen = document.getElementById('welcome-screen');
     if (screen) screen.remove();
 
     // Start new session on first user message
     if (role === 'user' && currentSessionId === null) {
-      currentSessionId = generateId();
-      saveSession({ id: currentSessionId, title: content, ts: Date.now() });
-      renderRecentChats();
+      var sess = await createSession(truncate(content, 80));
+      if (sess) {
+        currentSessionId = sess.id;
+        await renderRecentChats();
+      }
     }
 
-    // Save to session
-    appendSessionMessage(currentSessionId, {
-      role: role,
-      content: content,
-      meta: meta || {},
-      ts: formatTimestamp()
-    });
+    if (currentSessionId) {
+      await postMessage(currentSessionId, role, content, meta);
+    }
 
     var list = document.getElementById('message-list');
     var el = createBubble(role, content, formatTimestamp(), meta);
@@ -593,12 +610,12 @@ const responsesJSON = JSON.stringify(demoResponses);
   }
 
   // ─── Handle send ───
-  function handleSend() {
+  async function handleSend() {
     var input = document.getElementById('chat-input');
     var text = input.value.trim();
     if (!text) return;
 
-    appendMessage('user', text, {});
+    await appendMessage('user', text, {});
     input.value = '';
     input.style.height = 'auto';
 
@@ -606,13 +623,13 @@ const responsesJSON = JSON.stringify(demoResponses);
     btn.disabled = true;
     showTyping();
 
-    setTimeout(function() {
+    setTimeout(async function() {
       hideTyping();
       btn.disabled = false;
       var list = document.getElementById('message-list');
       var responses = JSON.parse(list.dataset.responses);
       var result = findResponse(text, responses, currentAgent);
-      appendMessage('assistant', result.answer, result);
+      await appendMessage('assistant', result.answer, result);
     }, 700);
   }
 
@@ -652,7 +669,7 @@ const responsesJSON = JSON.stringify(demoResponses);
     return welcome;
   }
   // ─── New chat ───
-  document.getElementById('new-chat-btn').addEventListener('click', function() {
+  document.getElementById('new-chat-btn').addEventListener('click', async function() {
     currentSessionId = null;
     var list = document.getElementById('message-list');
     list.innerHTML = '';
@@ -661,11 +678,11 @@ const responsesJSON = JSON.stringify(demoResponses);
     document.getElementById('chat-input').value = '';
     document.getElementById('chat-input').style.height = 'auto';
     document.getElementById('sidebar').classList.remove('open');
-    renderRecentChats();
+    await renderRecentChats();
   });
 
   // ─── Events ───
-  document.getElementById('send-btn').addEventListener('click', handleSend);
+  document.getElementById('send-btn').addEventListener('click', function() { handleSend(); });
 
   document.getElementById('chat-input').addEventListener('keydown', function(e) {
     if (e.key === 'Enter' && !e.shiftKey) {

@@ -5,23 +5,28 @@ interface Props {
   id: string;
   name: string;
   category: string;
-  uploadedBy: string;
-  uploadedAt: string;
-  expiryDate: string;
-  pages: number;
-  size: string;
+  uploadedByName: string;
+  createdAt: string;
+  expiryDate: string | null;
   status: 'active' | 'expiring' | 'expired';
   description: string;
 }
 
-const { name, category, uploadedBy, uploadedAt, expiryDate, pages, size, status, description } = Astro.props;
+const { name, category, uploadedByName, createdAt, expiryDate, status, description } = Astro.props;
 
 const statusConfig = {
-  active: { label: 'Active', cls: 'bg-green text-dark' },
+  active:   { label: 'Active',        cls: 'bg-green text-dark' },
   expiring: { label: 'Expiring Soon', cls: 'bg-yellow-400 text-dark' },
-  expired: { label: 'Expired', cls: 'bg-red-500 text-white' },
+  expired:  { label: 'Expired',       cls: 'bg-red-500 text-white' },
 };
-const s = statusConfig[status];
+const s = statusConfig[status] ?? statusConfig.active;
+
+const formattedDate = new Date(createdAt).toLocaleDateString('en-IN', {
+  day: 'numeric', month: 'short', year: 'numeric',
+});
+const formattedExpiry = expiryDate
+  ? new Date(expiryDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+  : null;
 ---
 
 <Card isUnderline={true}>
@@ -33,18 +38,19 @@ const s = statusConfig[status];
           <span class="text-xs text-[#666] bg-[#e0e0e0] px-2 py-0.5 rounded-full">{category}</span>
         </div>
         <h3 class="font-medium text-dark text-base truncate">{name}</h3>
-        <p class="text-sm text-[#777] mt-1 line-clamp-2">{description}</p>
+        {description && <p class="text-sm text-[#777] mt-1 line-clamp-2">{description}</p>}
       </div>
-      <div class="flex gap-2 shrink-0">
-        <button class="text-xs btn-secondary px-3 py-1.5 rounded-lg">View</button>
-        <button class="text-xs bg-red-100 text-red-600 px-3 py-1.5 rounded-lg border border-red-200 hover:bg-red-200 transition-colors">Delete</button>
-      </div>
+      <button
+        data-action="delete-doc"
+        class="text-xs bg-red-100 text-red-600 px-3 py-1.5 rounded-lg border border-red-200 hover:bg-red-200 transition-colors shrink-0"
+      >
+        Delete
+      </button>
     </div>
     <div class="h-[1px] bg-[#ddd] my-3"></div>
     <div class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-[#777]">
-      <span>{pages} pages &middot; {size}</span>
-      <span>Uploaded by {uploadedBy} on {uploadedAt}</span>
-      <span>Expires: {expiryDate}</span>
+      <span>Added by {uploadedByName || 'Admin'} on {formattedDate}</span>
+      {formattedExpiry && <span>Expires {formattedExpiry}</span>}
     </div>
   </div>
 </Card>
