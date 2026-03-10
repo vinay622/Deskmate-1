@@ -12,6 +12,9 @@ declare namespace App {
 interface ImportMetaEnv {
   readonly PUBLIC_SUPABASE_URL: string;
   readonly PUBLIC_SUPABASE_ANON_KEY: string;
+  readonly GEMINI_API_KEY: string;
+  readonly PINECONE_API_KEY: string;
+  readonly PINECONE_INDEX: string;
 }
 
 interface ImportMeta {

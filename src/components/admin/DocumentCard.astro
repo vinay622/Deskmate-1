@@ -10,9 +10,11 @@ interface Props {
   expiryDate: string | null;
   status: 'active' | 'expiring' | 'expired';
   description: string;
+  fileType?: string | null;
+  processingStatus?: string;
 }
 
-const { name, category, uploadedByName, createdAt, expiryDate, status, description } = Astro.props;
+const { name, category, uploadedByName, createdAt, expiryDate, status, description, fileType, processingStatus } = Astro.props;
 
 const statusConfig = {
   active:   { label: 'Active',        cls: 'bg-green text-dark' },
@@ -20,6 +22,24 @@ const statusConfig = {
   expired:  { label: 'Expired',       cls: 'bg-red-500 text-white' },
 };
 const s = statusConfig[status] ?? statusConfig.active;
+
+const processingConfig: Record<string, { label: string; cls: string }> = {
+  pending:    { label: 'Pending',       cls: 'bg-gray-200 text-gray-600' },
+  processing: { label: 'Processing...', cls: 'bg-blue-100 text-blue-600' },
+  ready:      { label: 'Indexed',       cls: 'bg-emerald-100 text-emerald-700' },
+  failed:     { label: 'Failed',        cls: 'bg-red-100 text-red-600' },
+};
+const ps = processingConfig[processingStatus ?? 'pending'] ?? processingConfig.pending;
+
+function getFileLabel(ft: string | null | undefined): string {
+  if (!ft) return '';
+  if (ft === 'application/pdf') return 'PDF';
+  if (ft.includes('wordprocessingml')) return 'DOCX';
+  if (ft === 'text/plain') return 'TXT';
+  if (ft.startsWith('image/')) return 'IMG';
+  return '';
+}
+const fileLabel = getFileLabel(fileType);
 
 const formattedDate = new Date(createdAt).toLocaleDateString('en-IN', {
   day: 'numeric', month: 'short', year: 'numeric',
@@ -35,7 +55,9 @@ const formattedExpiry = expiryDate
       <div class="flex-1 min-w-0">
         <div class="flex items-center gap-2 mb-1 flex-wrap">
           <span class={`text-xs font-medium px-2 py-0.5 rounded-full ${s.cls}`}>{s.label}</span>
+          <span class={`text-xs font-medium px-2 py-0.5 rounded-full ${ps.cls}`}>{ps.label}</span>
           <span class="text-xs text-[#666] bg-[#e0e0e0] px-2 py-0.5 rounded-full">{category}</span>
+          {fileLabel && <span class="text-xs text-[#888] bg-[#eee] px-2 py-0.5 rounded-full font-mono">{fileLabel}</span>}
         </div>
         <h3 class="font-medium text-dark text-base truncate">{name}</h3>
         {description && <p class="text-sm text-[#777] mt-1 line-clamp-2">{description}</p>}

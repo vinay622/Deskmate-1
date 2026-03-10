@@ -1,5 +1,7 @@
 import type { APIRoute } from 'astro';
 import { createSupabaseServerClient } from '../../../lib/supabase';
+import { extractText, chunkText, embedText } from '../../../lib/rag';
+import { upsertDocumentChunks } from '../../../lib/pinecone';
 
 function computeStatus(expiryDate: string | null): 'active' | 'expiring' | 'expired' {
   if (!expiryDate) return 'active';
@@ -18,39 +20,138 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
     });
   }
 
-  const body = await request.json();
-  const name = (body.name as string)?.trim();
-  const category = (body.category as string) || 'General';
-  const description = (body.description as string) || '';
-  const expiryDate = (body.expiry_date as string) || null;
-
-  if (!name) {
-    return new Response(JSON.stringify({ ok: false, error: 'name is required' }), {
-      status: 400, headers: { 'Content-Type': 'application/json' },
-    });
-  }
-
   const supabase = createSupabaseServerClient(request, cookies);
-  const { data: doc, error } = await supabase
-    .from('documents')
-    .insert({
-      name,
-      category,
-      description,
-      uploaded_by_name: locals.userName ?? '',
-      expiry_date: expiryDate,
-      status: computeStatus(expiryDate),
-    })
-    .select()
-    .single();
 
-  if (error) {
-    return new Response(JSON.stringify({ ok: false, error: error.message }), {
+  try {
+    const formData = await request.formData();
+    const name = (formData.get('name') as string)?.trim();
+    const category = (formData.get('category') as string) || 'General';
+    const description = (formData.get('description') as string) || '';
+    const expiryDate = (formData.get('expiry_date') as string) || null;
+    const file = formData.get('file') as File | null;
+
+    if (!name) {
+      return new Response(JSON.stringify({ ok: false, error: 'Document name is required' }), {
+        status: 400, headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (!file || file.size === 0) {
+      return new Response(JSON.stringify({ ok: false, error: 'A file is required' }), {
+        status: 400, headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      return new Response(JSON.stringify({ ok: false, error: 'File must be under 10MB' }), {
+        status: 400, headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Step 1: Insert document record
+    const { data: doc, error: insertErr } = await supabase
+      .from('documents')
+      .insert({
+        name,
+        category,
+        description,
+        uploaded_by_name: locals.userName ?? '',
+        expiry_date: expiryDate,
+        status: computeStatus(expiryDate),
+        file_type: file.type,
+        processing_status: 'processing',
+      })
+      .select()
+      .single();
+
+    if (insertErr || !doc) {
+      return new Response(JSON.stringify({ ok: false, error: insertErr?.message ?? 'Insert failed' }), {
+        status: 500, headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Step 2: Upload file to Supabase Storage
+    const fileExt = file.name.split('.').pop() || 'bin';
+    const storagePath = `${doc.id}.${fileExt}`;
+
+    const { error: uploadErr } = await supabase.storage
+      .from('documents')
+      .upload(storagePath, file, {
+        contentType: file.type,
+        upsert: false,
+      });
+
+    if (uploadErr) {
+      await supabase.from('documents').delete().eq('id', doc.id);
+      return new Response(JSON.stringify({ ok: false, error: 'File upload failed: ' + uploadErr.message }), {
+        status: 500, headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Update document with file_url
+    const { data: urlData } = supabase.storage.from('documents').getPublicUrl(storagePath);
+    const fileUrl = urlData?.publicUrl ?? storagePath;
+    await supabase.from('documents').update({ file_url: fileUrl }).eq('id', doc.id);
+
+    // Step 3: Extract text from file
+    let extractedText: string;
+    try {
+      extractedText = await extractText(file, file.type);
+    } catch (extractErr: any) {
+      await supabase.from('documents').update({ processing_status: 'failed' }).eq('id', doc.id);
+      return new Response(JSON.stringify({
+        ok: true, doc: { ...doc, processing_status: 'failed' },
+        warning: 'File uploaded but text extraction failed: ' + extractErr.message,
+      }), { status: 201, headers: { 'Content-Type': 'application/json' } });
+    }
+
+    if (!extractedText.trim()) {
+      await supabase.from('documents').update({ processing_status: 'failed' }).eq('id', doc.id);
+      return new Response(JSON.stringify({
+        ok: true, doc: { ...doc, processing_status: 'failed' },
+        warning: 'No text could be extracted from the file',
+      }), { status: 201, headers: { 'Content-Type': 'application/json' } });
+    }
+
+    // Step 4: Chunk the text
+    const chunks = chunkText(extractedText, 1000, 200);
+
+    // Step 5: Generate embeddings
+    const chunkTexts = chunks.map((c) => c.content);
+    let embeddings: number[][];
+    try {
+      embeddings = await embedText(chunkTexts);
+    } catch (embedErr: any) {
+      await supabase.from('documents').update({ processing_status: 'failed' }).eq('id', doc.id);
+      return new Response(JSON.stringify({
+        ok: true, doc: { ...doc, processing_status: 'failed' },
+        warning: 'Embedding generation failed: ' + embedErr.message,
+      }), { status: 201, headers: { 'Content-Type': 'application/json' } });
+    }
+
+    // Step 6: Upsert chunks + embeddings into Pinecone
+    try {
+      await upsertDocumentChunks(doc.id, name, category, chunks, embeddings);
+    } catch (chunkErr: any) {
+      await supabase.from('documents').update({ processing_status: 'failed' }).eq('id', doc.id);
+      return new Response(JSON.stringify({
+        ok: true, doc: { ...doc, processing_status: 'failed' },
+        warning: 'Chunk storage failed: ' + chunkErr.message,
+      }), { status: 201, headers: { 'Content-Type': 'application/json' } });
+    }
+
+    // Step 7: Mark as ready
+    await supabase.from('documents').update({ processing_status: 'ready' }).eq('id', doc.id);
+
+    return new Response(JSON.stringify({
+      ok: true,
+      doc: { ...doc, processing_status: 'ready', file_url: fileUrl },
+      chunks: chunks.length,
+    }), { status: 201, headers: { 'Content-Type': 'application/json' } });
+
+  } catch (err: any) {
+    return new Response(JSON.stringify({ ok: false, error: err.message || 'Internal error' }), {
       status: 500, headers: { 'Content-Type': 'application/json' },
     });
   }
-
-  return new Response(JSON.stringify({ ok: true, doc }), {
-    status: 201, headers: { 'Content-Type': 'application/json' },
-  });
 };

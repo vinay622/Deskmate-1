@@ -13,6 +13,8 @@ const isAppPage = Astro.url.pathname.startsWith('/app');
 const pathname = Astro.url.pathname;
 
 const user = Astro.locals.user;
+const userRole = Astro.locals.userRole;
+const isAdmin = userRole === 'admin';
 const fullName = Astro.locals.userName ?? '';
 const firstName = fullName.split(' ')[0] || 'You';
 
@@ -69,13 +71,32 @@ function isActive(href: string) {
             ))}
             <div class="lg:hidden flex items-center justify-center mt-3 gap-3 flex-wrap">
               {user ? (
-                <a
-                  class="mobile-nav-link px-6 py-3 rounded-2xl bg-green border border-zinc-900 text-dark hover:bg-black hover:text-white inline-flex text-base"
-                  href="/app/chat"
-                  data-close-menu="true"
-                >
-                  Open App
-                </a>
+                isAdmin ? (
+                  <>
+                    <a
+                      class="mobile-nav-link px-6 py-3 rounded-2xl border border-zinc-900 text-black hover:bg-black hover:text-white inline-flex text-base"
+                      href="/app/chat"
+                      data-close-menu="true"
+                    >
+                      Open App
+                    </a>
+                    <a
+                      class="mobile-nav-link px-6 py-3 rounded-2xl bg-green border border-zinc-900 text-dark hover:bg-black hover:text-white inline-flex text-base"
+                      href="/app/admin"
+                      data-close-menu="true"
+                    >
+                      Admin Dashboard
+                    </a>
+                  </>
+                ) : (
+                  <a
+                    class="mobile-nav-link px-6 py-3 rounded-2xl bg-green border border-zinc-900 text-dark hover:bg-black hover:text-white inline-flex text-base"
+                    href="/app/chat"
+                    data-close-menu="true"
+                  >
+                    Open App
+                  </a>
+                )
               ) : (
                 <>
                   <a
@@ -101,19 +122,30 @@ function isActive(href: string) {
 
       <div>
         {isAppPage ? (
-          <!-- App pages: just an "Open Chat" link -->
-          <div class="hidden lg:flex items-center gap-4">
+          <!-- App pages: "Admin Dashboard" for admins + "Open Chat" -->
+          <div class="hidden lg:flex items-center gap-3">
+            {isAdmin && (
+              <a href="/app/admin" class="px-7 py-3.5 rounded-2xl border border-[#b9ff66] text-white hover:bg-[#b9ff66] hover:text-dark text-sm font-medium transition-all">
+                Admin Dashboard
+              </a>
+            )}
             <a href="/app/chat" class="px-7 py-3.5 rounded-2xl bg-green hover:bg-dark text-dark hover:text-white border border-dark text-sm font-medium transition-all">
               Open Chat
             </a>
           </div>
         ) : user ? (
-          <!-- Logged-in on public pages: greet + open app -->
+          <!-- Logged-in on public pages: greet + admin dashboard (admin) or open app (student) -->
           <div class="hidden lg:flex items-center gap-3">
             <span class="text-sm text-[#555]">Hi, <span class="font-medium text-dark">{firstName}</span></span>
-            <a href="/app/chat" class="px-7 py-3.5 rounded-2xl bg-green border border-dark text-dark hover:bg-dark hover:text-white text-sm font-medium transition-all">
-              Open App
-            </a>
+            {isAdmin ? (
+              <a href="/app/admin" class="px-7 py-3.5 rounded-2xl bg-green border border-dark text-dark hover:bg-dark hover:text-white text-sm font-medium transition-all">
+                Admin Dashboard
+              </a>
+            ) : (
+              <a href="/app/chat" class="px-7 py-3.5 rounded-2xl bg-green border border-dark text-dark hover:bg-dark hover:text-white text-sm font-medium transition-all">
+                Open App
+              </a>
+            )}
           </div>
         ) : (
           <!-- Not logged in: Sign In + Sign Up -->

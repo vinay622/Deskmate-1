@@ -7,7 +7,7 @@ import vercel from '@astrojs/vercel';
 
 // https://astro.build/config
 export default defineConfig({
-  site: "https://positivustheme.vercel.app",
+  site: "http://localhost:4321/",
   integrations: [tailwind()],
   output: 'server',
   adapter: vercel(),

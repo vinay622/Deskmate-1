@@ -7,7 +7,7 @@ import { createSupabaseServerClient } from "../../../lib/supabase";
 const supabase = createSupabaseServerClient(Astro.request, Astro.cookies);
 const { data: documents } = await supabase
   .from('documents')
-  .select('id, name, category, description, uploaded_by_name, expiry_date, status, created_at')
+  .select('id, name, category, description, uploaded_by_name, expiry_date, status, file_type, processing_status, created_at')
   .order('created_at', { ascending: false });
 
 const docs = documents ?? [];
@@ -64,6 +64,8 @@ const docs = documents ?? [];
               expiryDate={doc.expiry_date ?? null}
               status={doc.status as 'active' | 'expiring' | 'expired'}
               description={doc.description ?? ''}
+              fileType={doc.file_type ?? null}
+              processingStatus={doc.processing_status ?? 'pending'}
             />
           </div>
         ))}
@@ -104,6 +106,15 @@ const docs = documents ?? [];
         <label class="block text-sm font-medium mb-1">Description <span class="font-normal text-[#aaa]">(optional)</span></label>
         <textarea id="doc-description" class="w-full border border-dark rounded-[14px] px-4 py-3 text-sm outline-none resize-none" rows="2"></textarea>
       </div>
+      <div>
+        <label class="block text-sm font-medium mb-1">Document File</label>
+        <div id="drop-zone" class="border-2 border-dashed border-dark rounded-[14px] p-6 text-center cursor-pointer hover:bg-[#f8f8f8] transition-colors">
+          <p class="text-sm text-[#666]">Click or drag a file here</p>
+          <p class="text-xs text-[#aaa] mt-1">PDF, DOCX, TXT, or Image (max 10MB)</p>
+          <p id="file-name-display" class="text-xs text-dark font-medium mt-2 hidden"></p>
+          <input id="doc-file" type="file" accept=".pdf,.docx,.txt,.png,.jpg,.jpeg,.webp" class="hidden" />
+        </div>
+      </div>
       <button type="button" id="submit-upload-btn" class="btn-primary w-full rounded-2xl py-4">
         Add Document
       </button>
@@ -122,11 +133,37 @@ const docs = documents ?? [];
     m.classList.add('hidden'); m.classList.remove('flex');
     document.getElementById('upload-form').reset();
     document.getElementById('upload-error').classList.add('hidden');
+    var fn = document.getElementById('file-name-display');
+    fn.classList.add('hidden'); fn.textContent = '';
   }
   document.getElementById('open-upload-modal').addEventListener('click', openModal);
   document.getElementById('close-modal').addEventListener('click', closeModal);
   document.getElementById('upload-modal').addEventListener('click', function(e) {
     if (e.target === this) closeModal();
+  });
+
+  // ─── File input / drop zone ───
+  var dropZone = document.getElementById('drop-zone');
+  var fileInput = document.getElementById('doc-file');
+  var fileNameDisplay = document.getElementById('file-name-display');
+
+  dropZone.addEventListener('click', function() { fileInput.click(); });
+  fileInput.addEventListener('change', function() {
+    if (fileInput.files[0]) {
+      fileNameDisplay.textContent = fileInput.files[0].name;
+      fileNameDisplay.classList.remove('hidden');
+    }
+  });
+  dropZone.addEventListener('dragover', function(e) { e.preventDefault(); dropZone.style.borderColor = '#b9ff66'; });
+  dropZone.addEventListener('dragleave', function() { dropZone.style.borderColor = ''; });
+  dropZone.addEventListener('drop', function(e) {
+    e.preventDefault();
+    dropZone.style.borderColor = '';
+    if (e.dataTransfer.files[0]) {
+      fileInput.files = e.dataTransfer.files;
+      fileNameDisplay.textContent = e.dataTransfer.files[0].name;
+      fileNameDisplay.classList.remove('hidden');
+    }
   });
 
   // ─── Submit ───
@@ -136,6 +173,7 @@ const docs = documents ?? [];
     var category = document.getElementById('doc-category').value;
     var expiry = document.getElementById('doc-expiry').value;
     var description = document.getElementById('doc-description').value.trim();
+    var file = document.getElementById('doc-file').files[0];
     var errEl = document.getElementById('upload-error');
 
     if (!name) {
@@ -143,19 +181,41 @@ const docs = documents ?? [];
       errEl.classList.remove('hidden');
       return;
     }
+    if (!file) {
+      errEl.textContent = 'Please select a file to upload.';
+      errEl.classList.remove('hidden');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      errEl.textContent = 'File must be under 10MB.';
+      errEl.classList.remove('hidden');
+      return;
+    }
 
     btn.disabled = true;
-    btn.textContent = 'Adding…';
+    btn.textContent = 'Uploading & Processing…';
+
+    var formData = new FormData();
+    formData.append('name', name);
+    formData.append('category', category);
+    formData.append('expiry_date', expiry || '');
+    formData.append('description', description);
+    formData.append('file', file);
 
     try {
       var res = await fetch('/api/admin/documents', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name, category: category, expiry_date: expiry || null, description: description }),
+        body: formData,
       });
       var data = await res.json();
-      if (data.ok) { closeModal(); window.location.reload(); }
-      else { errEl.textContent = data.error || 'Failed to add.'; errEl.classList.remove('hidden'); }
+      if (data.ok) {
+        if (data.warning) { alert('Document uploaded with warning: ' + data.warning); }
+        closeModal();
+        window.location.reload();
+      } else {
+        errEl.textContent = data.error || 'Failed to upload.';
+        errEl.classList.remove('hidden');
+      }
     } catch(e) {
       errEl.textContent = 'Network error. Please try again.';
       errEl.classList.remove('hidden');

@@ -1,5 +1,5 @@
 ---
-import demoResponses from '../../data/deskmate/demoResponses.json';
+import { createSupabaseServerClient } from '../../lib/supabase';
 
 interface Props {
   userName?: string;
@@ -14,7 +14,13 @@ const {
 } = Astro.props;
 
 const userInitial = userName.charAt(0).toUpperCase();
-const responsesJSON = JSON.stringify(demoResponses);
+
+const supabase = createSupabaseServerClient(Astro.request, Astro.cookies);
+const { count: indexedDocCount } = await supabase
+  .from('documents')
+  .select('id', { count: 'exact', head: true })
+  .eq('processing_status', 'ready');
+const docCount = indexedDocCount ?? 0;
 ---
 
 <div class="flex h-screen bg-white overflow-hidden" id="chat-root">
@@ -99,13 +105,13 @@ const responsesJSON = JSON.stringify(demoResponses);
         <div class="w-px h-5 bg-[#e8eaed]"></div>
         <div class="flex items-center gap-1.5 text-[#aaa]">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-          <span class="text-xs hidden sm:inline">7 docs indexed</span>
+          <span class="text-xs hidden sm:inline">{docCount} docs indexed</span>
         </div>
       </div>
     </header>
 
     <!-- Message List -->
-    <div id="message-list" class="flex-1 overflow-y-auto" data-responses={responsesJSON}>
+    <div id="message-list" class="flex-1 overflow-y-auto">
 
       <!-- Welcome state -->
       <div id="welcome-screen" class="h-full flex flex-col items-center justify-center px-6 py-12">
@@ -207,6 +213,21 @@ const responsesJSON = JSON.stringify(demoResponses);
 <style>
   #chat-input { overflow-y: hidden; }
 
+  .markdown-body { font-size: 0.875rem; line-height: 1.65; }
+  .markdown-body p { margin: 0 0 0.5em; }
+  .markdown-body p:last-child { margin-bottom: 0; }
+  .markdown-body h3 { font-size: 0.95rem; font-weight: 600; margin: 0.75em 0 0.35em; }
+  .markdown-body h4 { font-size: 0.875rem; font-weight: 600; margin: 0.6em 0 0.25em; }
+  .markdown-body ul { margin: 0.35em 0 0.5em 1.2em; list-style: disc; }
+  .markdown-body ol { margin: 0.35em 0 0.5em 1.2em; list-style: decimal; }
+  .markdown-body li { margin: 0.15em 0; }
+  .markdown-body strong { font-weight: 600; }
+  .markdown-body em { font-style: italic; }
+  .markdown-body code { background: #eef0f4; border-radius: 4px; padding: 1px 5px; font-size: 0.82em; font-family: monospace; }
+  .markdown-body pre { background: #1e1f2a; color: #e2e4e9; border-radius: 10px; padding: 0.85em 1em; overflow-x: auto; margin: 0.5em 0; }
+  .markdown-body pre code { background: none; padding: 0; font-size: 0.82em; color: inherit; }
+  .markdown-body blockquote { border-left: 3px solid #b9ff66; padding-left: 0.75em; color: #666; margin: 0.5em 0; }
+
   @media (max-width: 1023px) {
     #sidebar {
       position: fixed;
@@ -248,6 +269,82 @@ const responsesJSON = JSON.stringify(demoResponses);
   var currentAgent = AGENTS[0];
   var currentSessionId = null;
   var messageBuffer = [];
+
+  // ─── Markdown renderer ───
+  function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+  function inlineMd(text) {
+    var s = escHtml(text);
+    s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
+    s = s.replace(/\*\*\*([^*]+)\*\*\*/g, '<strong><em>$1</em></strong>');
+    s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    s = s.replace(/\*([^*\n]+)\*/g, '<em>$1</em>');
+    return s;
+  }
+  function renderMarkdown(raw) {
+    if (!raw) return '';
+    var lines = raw.split('\n');
+    var out = [];
+    var inCode = false, inList = false, listTag = '';
+
+    function closeList() {
+      if (inList) { out.push('</' + listTag + '>'); inList = false; listTag = ''; }
+    }
+
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i];
+      var trim = line.trim();
+
+      // Fenced code blocks
+      if (trim.startsWith('```')) {
+        if (inCode) { out.push('</code></pre>'); inCode = false; }
+        else { closeList(); out.push('<pre><code>'); inCode = true; }
+        continue;
+      }
+      if (inCode) { out.push(escHtml(line) + '\n'); continue; }
+
+      // Blank line
+      if (!trim) { closeList(); continue; }
+
+      // Headings
+      var hm = trim.match(/^(#{1,4})\s+(.*)/);
+      if (hm) {
+        closeList();
+        var lvl = Math.min(hm[1].length + 2, 6);
+        out.push('<h' + lvl + '>' + inlineMd(hm[2]) + '</h' + lvl + '>');
+        continue;
+      }
+
+      // Bullet list
+      var bm = trim.match(/^[-*]\s+(.*)/);
+      if (bm) {
+        if (!inList || listTag !== 'ul') { closeList(); out.push('<ul>'); inList = true; listTag = 'ul'; }
+        out.push('<li>' + inlineMd(bm[1]) + '</li>');
+        continue;
+      }
+
+      // Numbered list
+      var nm = trim.match(/^\d+\.\s+(.*)/);
+      if (nm) {
+        if (!inList || listTag !== 'ol') { closeList(); out.push('<ol>'); inList = true; listTag = 'ol'; }
+        out.push('<li>' + inlineMd(nm[1]) + '</li>');
+        continue;
+      }
+
+      // Blockquote
+      var qm = trim.match(/^>\s?(.*)/);
+      if (qm) { closeList(); out.push('<blockquote>' + inlineMd(qm[1]) + '</blockquote>'); continue; }
+
+      // Paragraph
+      closeList();
+      out.push('<p>' + inlineMd(trim) + '</p>');
+    }
+
+    closeList();
+    if (inCode) out.push('</code></pre>');
+    return out.join('');
+  }
 
   // ─── Build agent dropdown options ───
   (function() {
@@ -318,54 +415,6 @@ const responsesJSON = JSON.stringify(demoResponses);
     return 'en';
   }
 
-  // ─── Response matching ───
-  function findResponse(userMessage, responses, agent) {
-    var normalized = userMessage.toLowerCase().replace(/[^\w\s\u0900-\u097F\u0C00-\u0C7F]/g, ' ');
-
-    // Inject agent topic keywords into the normalized message to boost relevance
-    if (agent && agent.topics && agent.topics.length > 0) {
-      normalized = agent.topics.join(' ') + ' ' + normalized;
-    }
-
-    var tokens = normalized.split(/\s+/).filter(function(t) { return t.length > 1; });
-
-    var fallback = responses.find(function(r) { return r.id === 'fallback'; });
-    var candidates = responses.filter(function(r) { return r.id !== 'fallback'; });
-
-    var bestScore = 0;
-    var bestMatch = fallback;
-
-    for (var i = 0; i < candidates.length; i++) {
-      var entry = candidates[i];
-      var score = 0;
-      for (var k = 0; k < entry.keywords.length; k++) {
-        var keyword = entry.keywords[k];
-        for (var t = 0; t < tokens.length; t++) {
-          var token = tokens[t];
-          if (token === keyword || token.indexOf(keyword) !== -1 || keyword.indexOf(token) !== -1) {
-            score += 1;
-          }
-        }
-      }
-      if (normalized.indexOf(entry.topic) !== -1) score += 2;
-      if (score > bestScore) {
-        bestScore = score;
-        bestMatch = entry;
-      }
-    }
-
-    return {
-      id: bestMatch.id,
-      topic: bestMatch.topic,
-      answer: bestMatch.answer,
-      source: bestMatch.source,
-      page: bestMatch.page,
-      category: bestMatch.category,
-      routeTo: bestMatch.routeTo,
-      confidence: bestScore >= 3 ? 'high' : bestScore >= 1 ? 'low' : 'none'
-    };
-  }
-
   // ─── Timestamp ───
   function formatTimestamp() {
     return new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
@@ -385,37 +434,20 @@ const responsesJSON = JSON.stringify(demoResponses);
       ? 'bg-dark text-white rounded-[18px] rounded-br-[4px]'
       : 'bg-[#f8f9fb] border border-[#e8eaed] rounded-[18px] rounded-bl-[4px] text-dark');
 
-    var p = document.createElement('p');
-    p.className = 'text-sm leading-relaxed whitespace-pre-wrap';
-    p.textContent = content;
+    var p = document.createElement(isUser ? 'p' : 'div');
+    p.className = isUser
+      ? 'text-sm leading-relaxed whitespace-pre-wrap'
+      : 'markdown-body';
+    if (isUser) {
+      p.textContent = content;
+    } else {
+      p.innerHTML = renderMarkdown(content);
+    }
     bubble.appendChild(p);
     inner.appendChild(bubble);
 
-    // Citation badge
-    if (!isUser && meta && meta.source) {
-      var badgeRow = document.createElement('div');
-      badgeRow.className = 'flex items-center gap-2 flex-wrap';
-
-      var sourceBadge = document.createElement('span');
-      sourceBadge.className = 'inline-flex items-center gap-1.5 bg-[#f3f3f3] border border-[#e0e0e0] text-dark text-[11px] px-3 py-1 rounded-full font-medium';
-      sourceBadge.innerHTML = '<svg width="10" height="12" viewBox="0 0 10 12" fill="#888"><path d="M1 0h8v12H1V0zm2 3h4v1H3V3zm0 2h4v1H3V5zm0 2h3v1H3V7z"/></svg>' + meta.source + ' &middot; p.' + meta.page;
-      badgeRow.appendChild(sourceBadge);
-
-      if (meta.category) {
-        var catBadge = document.createElement('span');
-        catBadge.className = 'text-[11px] text-[#888] px-2.5 py-0.5 bg-[#f3f3f3] rounded-full border border-[#e0e0e0]';
-        catBadge.textContent = meta.category;
-        badgeRow.appendChild(catBadge);
-      }
-
-      if (meta.confidence === 'low') {
-        var confBadge = document.createElement('span');
-        confBadge.className = 'text-[11px] px-2.5 py-0.5 bg-amber-50 text-amber-600 border border-amber-200 rounded-full';
-        confBadge.textContent = 'Low confidence';
-        badgeRow.appendChild(confBadge);
-      }
-      inner.appendChild(badgeRow);
-    }
+    // Citation badges
+    if (!isUser) addBadges(inner, meta);
 
     // Staff redirect card
     if (!isUser && meta && meta.routeTo) {
@@ -609,6 +641,54 @@ const responsesJSON = JSON.stringify(demoResponses);
     if (el) el.remove();
   }
 
+  // ─── Badge helper (shared by createBubble and streaming) ───
+  function addBadges(inner, meta) {
+    if (!meta) return;
+    var hasBadges = false;
+    var badgeRow = document.createElement('div');
+    badgeRow.className = 'flex items-center gap-2 flex-wrap';
+
+    if (meta.sources && meta.sources.length > 0) {
+      meta.sources.forEach(function(src) {
+        var sb = document.createElement('span');
+        sb.className = 'inline-flex items-center gap-1.5 bg-[#f3f3f3] border border-[#e0e0e0] text-dark text-[11px] px-3 py-1 rounded-full font-medium';
+        sb.innerHTML = '<svg width="10" height="12" viewBox="0 0 10 12" fill="#888"><path d="M1 0h8v12H1V0zm2 3h4v1H3V3zm0 2h4v1H3V5zm0 2h3v1H3V7z"/></svg>' + escHtml(src.documentName);
+        badgeRow.appendChild(sb);
+        if (src.category) {
+          var cb = document.createElement('span');
+          cb.className = 'text-[11px] text-[#888] px-2.5 py-0.5 bg-[#f3f3f3] rounded-full border border-[#e0e0e0]';
+          cb.textContent = src.category;
+          badgeRow.appendChild(cb);
+        }
+        hasBadges = true;
+      });
+    }
+    if (meta.hasContext === false) {
+      var gb = document.createElement('span');
+      gb.className = 'text-[11px] px-2.5 py-0.5 bg-amber-50 text-amber-600 border border-amber-200 rounded-full';
+      gb.textContent = 'General knowledge';
+      badgeRow.appendChild(gb);
+      hasBadges = true;
+    }
+    if (hasBadges) inner.appendChild(badgeRow);
+  }
+
+  // ─── Streaming bubble factory ───
+  function createStreamingBubble() {
+    var outer = document.createElement('div');
+    outer.className = 'flex justify-start mb-5 px-6 msg-appear';
+    var inner = document.createElement('div');
+    inner.className = 'max-w-[72%] flex flex-col gap-2 items-start';
+    var bubble = document.createElement('div');
+    bubble.className = 'px-4 py-3 bg-[#f8f9fb] border border-[#e8eaed] rounded-[18px] rounded-bl-[4px] text-dark';
+    var contentEl = document.createElement('div');
+    contentEl.className = 'markdown-body';
+    bubble.appendChild(contentEl);
+    inner.appendChild(bubble);
+    outer.appendChild(inner);
+    return { outer: outer, inner: inner, contentEl: contentEl };
+  }
+
   // ─── Handle send ───
   async function handleSend() {
     var input = document.getElementById('chat-input');
@@ -623,14 +703,82 @@ const responsesJSON = JSON.stringify(demoResponses);
     btn.disabled = true;
     showTyping();
 
-    setTimeout(async function() {
+    try {
+      var res = await fetch('/api/chat/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: text, agent: currentAgent.id }),
+      });
+
+      // Non-200 errors (401, 400, 500 before streaming starts)
+      if (!res.ok) {
+        hideTyping();
+        btn.disabled = false;
+        var errData = {};
+        try { errData = await res.json(); } catch(e) {}
+        await appendMessage('assistant', errData.error || 'Sorry, something went wrong.', {});
+        return;
+      }
+
+      // Kick off streaming
+      hideTyping();
+      var list = document.getElementById('message-list');
+      var sb = createStreamingBubble();
+      list.appendChild(sb.outer);
+      list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
+
+      var reader = res.body.getReader();
+      var decoder = new TextDecoder();
+      var fullText = '';
+      var lineBuf = '';
+      var streamMeta = { sources: [], hasContext: true };
+
+      while (true) {
+        var chunk = await reader.read();
+        if (chunk.done) break;
+
+        lineBuf += decoder.decode(chunk.value, { stream: true });
+        var lines = lineBuf.split('\n');
+        lineBuf = lines.pop() || '';
+
+        for (var j = 0; j < lines.length; j++) {
+          var line = lines[j].trim();
+          if (!line) continue;
+          try {
+            var parsed = JSON.parse(line);
+            if (parsed.type === 'chunk' && parsed.text) {
+              fullText += parsed.text;
+              sb.contentEl.innerHTML = renderMarkdown(fullText);
+              list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
+            } else if (parsed.type === 'done') {
+              streamMeta = { sources: parsed.sources || [], hasContext: parsed.hasContext };
+            } else if (parsed.type === 'error' && !fullText) {
+              fullText = parsed.error || 'Sorry, something went wrong.';
+              sb.contentEl.innerHTML = renderMarkdown(fullText);
+            }
+          } catch(e) {}
+        }
+      }
+
+      btn.disabled = false;
+
+      // Append badges + timestamp now that stream is complete
+      addBadges(sb.inner, streamMeta);
+      var ts = document.createElement('span');
+      ts.className = 'text-[10px] text-[#ccc] px-1';
+      ts.textContent = formatTimestamp();
+      sb.inner.appendChild(ts);
+
+      // Persist to Supabase
+      if (currentSessionId) {
+        await postMessage(currentSessionId, 'assistant', fullText, streamMeta);
+      }
+
+    } catch(e) {
       hideTyping();
       btn.disabled = false;
-      var list = document.getElementById('message-list');
-      var responses = JSON.parse(list.dataset.responses);
-      var result = findResponse(text, responses, currentAgent);
-      await appendMessage('assistant', result.answer, result);
-    }, 700);
+      await appendMessage('assistant', 'Network error. Please check your connection and try again.', {});
+    }
   }
 
   // ─── Build welcome screen (used by New Chat) ───
