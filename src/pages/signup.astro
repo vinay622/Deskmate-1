@@ -196,17 +196,61 @@ import AuthLayout from "../layouts/AuthLayout.astro";
             <div class="flex flex-col gap-1.5">
               <label class="text-xs font-medium text-dark uppercase tracking-wide" for="college">College / Institution</label>
               <div class="relative">
-                <span class="absolute left-4 top-1/2 -translate-y-1/2 text-[#aaa]">
+                <span class="absolute left-4 top-1/2 -translate-y-1/2 text-[#aaa] pointer-events-none">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
                 </span>
-                <input
-                  type="text"
+                <select
                   id="college"
                   name="college"
-                  placeholder="e.g. JNTUH College of Engineering"
                   required
-                  class="w-full pl-10 pr-4 py-3.5 border border-[#e0e0e0] rounded-[14px] text-dark text-sm outline-none focus:border-dark transition-all"
-                />
+                  class="w-full pl-10 pr-4 py-3.5 border border-[#e0e0e0] rounded-[14px] text-dark text-sm outline-none focus:border-dark transition-all appearance-none bg-white cursor-pointer"
+                >
+                  <option value="" disabled selected>Select your college</option>
+                  <option value="Vasavi College of Engineering">Vasavi College of Engineering</option>
+                  <option value="Vignana Bharathi Institute of Technology (VBIT)">Vignana Bharathi Institute of Technology (VBIT)</option>
+                  <option value="Chaitanya Bharathi Institute of Technology (CBIT)">Chaitanya Bharathi Institute of Technology (CBIT)</option>
+                  <option value="VNR Vignana Jyothi Institute of Engineering and Technology (VNRVJIET)">VNR Vignana Jyothi Institute of Engineering and Technology (VNRVJIET)</option>
+                  <option value="Neil Gogte Institute of Technology (NGIT)">Neil Gogte Institute of Technology (NGIT)</option>
+                  <option value="Keshav Memorial Institute of Technology">Keshav Memorial Institute of Technology</option>
+                  <option value="University of Hyderabad">University of Hyderabad</option>
+                  <option value="Osmania University">Osmania University</option>
+                  <option value="Indian Institute of Technology Hyderabad">Indian Institute of Technology Hyderabad</option>
+                  <option value="International Institute of Information Technology Hyderabad">International Institute of Information Technology Hyderabad</option>
+                  <option value="Jawaharlal Nehru Technological University Hyderabad">Jawaharlal Nehru Technological University Hyderabad</option>
+                  <option value="NALSAR University of Law">NALSAR University of Law</option>
+                  <option value="Maulana Azad National Urdu University">Maulana Azad National Urdu University</option>
+                  <option value="English and Foreign Languages University">English and Foreign Languages University</option>
+                  <option value="Professor Jayashankar Telangana State Agricultural University">Professor Jayashankar Telangana State Agricultural University</option>
+                  <option value="Dr. B.R. Ambedkar Open University">Dr. B.R. Ambedkar Open University</option>
+                  <option value="Mahindra University">Mahindra University</option>
+                  <option value="Woxsen University">Woxsen University</option>
+                  <option value="Anurag University">Anurag University</option>
+                  <option value="ICFAI Foundation for Higher Education">ICFAI Foundation for Higher Education</option>
+                  <option value="GITAM University Hyderabad Campus">GITAM University Hyderabad Campus</option>
+                  <option value="Indian School of Business">Indian School of Business</option>
+                  <option value="Nizam's Institute of Medical Sciences">Nizam's Institute of Medical Sciences</option>
+                  <option value="CMR Institute of Technology Hyderabad">CMR Institute of Technology Hyderabad</option>
+                  <option value="CVR College of Engineering">CVR College of Engineering</option>
+                  <option value="Gokaraju Rangaraju Institute of Engineering and Technology">Gokaraju Rangaraju Institute of Engineering and Technology</option>
+                  <option value="Institute of Aeronautical Engineering">Institute of Aeronautical Engineering</option>
+                  <option value="J.B. Institute of Engineering and Technology">J.B. Institute of Engineering and Technology</option>
+                  <option value="Deccan College of Engineering and Technology">Deccan College of Engineering and Technology</option>
+                  <option value="Ellenki College of Engineering and Technology">Ellenki College of Engineering and Technology</option>
+                  <option value="Vishwa Vishwani Institute of Systems and Management">Vishwa Vishwani Institute of Systems and Management</option>
+                  <option value="Dhruva College of Management">Dhruva College of Management</option>
+                  <option value="SUN International Institute for Tourism & Management">SUN International Institute for Tourism & Management</option>
+                  <option value="National Institute of Pharmaceutical Education and Research Hyderabad">National Institute of Pharmaceutical Education and Research Hyderabad</option>
+                  <option value="Malla Reddy Engineering College">Malla Reddy Engineering College</option>
+                  <option value="Malla Reddy College of Engineering and Technology">Malla Reddy College of Engineering and Technology</option>
+                  <option value="Malla Reddy Institute of Technology">Malla Reddy Institute of Technology</option>
+                  <option value="Methodist College of Engineering and Technology">Methodist College of Engineering and Technology</option>
+                  <option value="Stanley College of Engineering and Technology for Women">Stanley College of Engineering and Technology for Women</option>
+                  <option value="Lords Institute of Engineering and Technology">Lords Institute of Engineering and Technology</option>
+                  <option value="St. Mary's Engineering College">St. Mary's Engineering College</option>
+                </select>
+                <span class="absolute right-4 top-1/2 -translate-y-1/2 text-[#aaa] pointer-events-none">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                </span>
               </div>
             </div>
 

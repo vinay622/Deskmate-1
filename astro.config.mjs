@@ -16,4 +16,10 @@ export default defineConfig({
     '/pricing': '/',
     '/services': '/',
   },
+  vite: {
+    ssr: {
+      // Keep heavy server-only packages external so Vite doesn't bundle them
+      external: ['pdf-parse', 'pdfjs-dist', 'mammoth', '@pinecone-database/pinecone', '@google/genai'],
+    },
+  },
 });

@@ -163,6 +163,12 @@ const docCount = indexedDocCount ?? 0;
       <!-- Input row -->
       <div class="relative max-w-3xl mx-auto">
 
+        <!-- Stop generating button (shown during streaming) -->
+        <button id="stop-btn" class="items-center gap-1.5 bg-white border border-[#e0e0e0] text-dark text-xs font-medium px-3 py-1.5 rounded-full shadow-sm hover:border-dark transition-all">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+          Stop generating
+        </button>
+
         <!-- Agent dropdown — positioned relative to this container, opens upward -->
         <div id="agent-dropdown" class="hidden absolute bottom-full left-0 mb-2 w-72 bg-white border border-[#e0e0e0] rounded-[16px] shadow-lg z-50 overflow-hidden">
           <div class="px-3 py-2 border-b border-[#f0f0f0]">
@@ -227,6 +233,30 @@ const docCount = indexedDocCount ?? 0;
   .markdown-body pre { background: #1e1f2a; color: #e2e4e9; border-radius: 10px; padding: 0.85em 1em; overflow-x: auto; margin: 0.5em 0; }
   .markdown-body pre code { background: none; padding: 0; font-size: 0.82em; color: inherit; }
   .markdown-body blockquote { border-left: 3px solid #b9ff66; padding-left: 0.75em; color: #666; margin: 0.5em 0; }
+
+  .streaming-cursor::after {
+    content: '▍';
+    display: inline-block;
+    color: #b9ff66;
+    animation: blink 0.7s step-end infinite;
+    margin-left: 1px;
+    font-size: 0.9em;
+    vertical-align: text-bottom;
+  }
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0; }
+  }
+
+  #stop-btn {
+    display: none;
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+  }
+  #stop-btn.visible { display: flex; }
 
   @media (max-width: 1023px) {
     #sidebar {
@@ -587,6 +617,11 @@ const docCount = indexedDocCount ?? 0;
     var list = document.getElementById('message-list');
     list.innerHTML = '';
 
+    // Populate conversation memory from persisted messages
+    messageBuffer = msgs.map(function(msg) {
+      return { role: msg.role, content: msg.content };
+    });
+
     msgs.forEach(function(msg) {
       var ts = new Date(msg.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
       var el = createBubble(msg.role, msg.content, ts, msg.meta || {});
@@ -682,7 +717,7 @@ const docCount = indexedDocCount ?? 0;
     var bubble = document.createElement('div');
     bubble.className = 'px-4 py-3 bg-[#f8f9fb] border border-[#e8eaed] rounded-[18px] rounded-bl-[4px] text-dark';
     var contentEl = document.createElement('div');
-    contentEl.className = 'markdown-body';
+    contentEl.className = 'markdown-body streaming-cursor';
     bubble.appendChild(contentEl);
     inner.appendChild(bubble);
     outer.appendChild(inner);
@@ -695,6 +730,9 @@ const docCount = indexedDocCount ?? 0;
     var text = input.value.trim();
     if (!text) return;
 
+    // Track in conversation memory
+    messageBuffer.push({ role: 'user', content: text });
+
     await appendMessage('user', text, {});
     input.value = '';
     input.style.height = 'auto';
@@ -703,11 +741,14 @@ const docCount = indexedDocCount ?? 0;
     btn.disabled = true;
     showTyping();
 
+    // Send last 10 messages (5 user-assistant turns) as history
+    var history = messageBuffer.slice(-11, -1);
+
     try {
       var res = await fetch('/api/chat/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: text, agent: currentAgent.id }),
+        body: JSON.stringify({ query: text, agent: currentAgent.id, history: history }),
       });
 
       // Non-200 errors (401, 400, 500 before streaming starts)
@@ -732,10 +773,23 @@ const docCount = indexedDocCount ?? 0;
       var fullText = '';
       var lineBuf = '';
       var streamMeta = { sources: [], hasContext: true };
+      var stopped = false;
+      var chunkCount = 0;
+
+      // Show stop button
+      var stopBtn = document.getElementById('stop-btn');
+      stopBtn.classList.add('visible');
+      function stopStreaming() {
+        stopped = true;
+        reader.cancel();
+        stopBtn.classList.remove('visible');
+        sb.contentEl.classList.remove('streaming-cursor');
+      }
+      stopBtn.onclick = stopStreaming;
 
       while (true) {
         var chunk = await reader.read();
-        if (chunk.done) break;
+        if (chunk.done || stopped) break;
 
         lineBuf += decoder.decode(chunk.value, { stream: true });
         var lines = lineBuf.split('\n');
@@ -748,8 +802,12 @@ const docCount = indexedDocCount ?? 0;
             var parsed = JSON.parse(line);
             if (parsed.type === 'chunk' && parsed.text) {
               fullText += parsed.text;
+              chunkCount++;
               sb.contentEl.innerHTML = renderMarkdown(fullText);
-              list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
+              // Scroll every 5 chunks to avoid jank on every token
+              if (chunkCount % 5 === 0) {
+                list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
+              }
             } else if (parsed.type === 'done') {
               streamMeta = { sources: parsed.sources || [], hasContext: parsed.hasContext };
             } else if (parsed.type === 'error' && !fullText) {
@@ -760,6 +818,12 @@ const docCount = indexedDocCount ?? 0;
         }
       }
 
+      // Remove cursor and stop button when done
+      sb.contentEl.classList.remove('streaming-cursor');
+      stopBtn.classList.remove('visible');
+      stopBtn.onclick = null;
+      list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
+
       btn.disabled = false;
 
       // Append badges + timestamp now that stream is complete
@@ -769,7 +833,8 @@ const docCount = indexedDocCount ?? 0;
       ts.textContent = formatTimestamp();
       sb.inner.appendChild(ts);
 
-      // Persist to Supabase
+      // Persist to Supabase and track in memory
+      messageBuffer.push({ role: 'assistant', content: fullText });
       if (currentSessionId) {
         await postMessage(currentSessionId, 'assistant', fullText, streamMeta);
       }
@@ -777,6 +842,7 @@ const docCount = indexedDocCount ?? 0;
     } catch(e) {
       hideTyping();
       btn.disabled = false;
+      document.getElementById('stop-btn').classList.remove('visible');
       await appendMessage('assistant', 'Network error. Please check your connection and try again.', {});
     }
   }
@@ -819,6 +885,7 @@ const docCount = indexedDocCount ?? 0;
   // ─── New chat ───
   document.getElementById('new-chat-btn').addEventListener('click', async function() {
     currentSessionId = null;
+    messageBuffer = [];
     var list = document.getElementById('message-list');
     list.innerHTML = '';
     list.appendChild(buildWelcomeScreen());

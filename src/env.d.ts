@@ -6,6 +6,7 @@ declare namespace App {
     user: import("@supabase/supabase-js").User | null;
     userRole: "student" | "admin" | null;
     userName: string | null;
+    collegeName: string | null;
   }
 }
 

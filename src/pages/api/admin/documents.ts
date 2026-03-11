@@ -60,6 +60,7 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
         status: computeStatus(expiryDate),
         file_type: file.type,
         processing_status: 'processing',
+        college_name: locals.collegeName ?? '',
       })
       .select()
       .single();
@@ -113,10 +114,11 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
       }), { status: 201, headers: { 'Content-Type': 'application/json' } });
     }
 
-    // Step 4: Chunk the text
+    // Step 4: Chunk the text, then release the full text
     const chunks = chunkText(extractedText, 1000, 200);
+    extractedText = ''; // free memory
 
-    // Step 5: Generate embeddings
+    // Step 5: Generate embeddings (batched internally, 20 at a time)
     const chunkTexts = chunks.map((c) => c.content);
     let embeddings: number[][];
     try {
@@ -131,7 +133,7 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
 
     // Step 6: Upsert chunks + embeddings into Pinecone
     try {
-      await upsertDocumentChunks(doc.id, name, category, chunks, embeddings);
+      await upsertDocumentChunks(doc.id, name, category, chunks, embeddings, locals.collegeName ?? '');
     } catch (chunkErr: any) {
       await supabase.from('documents').update({ processing_status: 'failed' }).eq('id', doc.id);
       return new Response(JSON.stringify({

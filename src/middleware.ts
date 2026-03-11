@@ -15,17 +15,19 @@ export const onRequest = defineMiddleware(async (context, next) => {
   context.locals.user = user;
   context.locals.userRole = null;
   context.locals.userName = null;
+  context.locals.collegeName = null;
 
   if (user) {
-    // Fetch role and name from profiles table
+    // Fetch role, name, and college from profiles table
     const { data: profile } = await supabase
       .from("profiles")
-      .select("role, full_name")
+      .select("role, full_name, college_name")
       .eq("id", user.id)
       .single();
 
     context.locals.userRole = (profile?.role as "student" | "admin") ?? null;
     context.locals.userName = profile?.full_name ?? null;
+    context.locals.collegeName = profile?.college_name ?? null;
   }
 
   const pathname = new URL(context.request.url).pathname;

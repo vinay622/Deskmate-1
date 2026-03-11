@@ -1,4 +1,5 @@
 import { createBrowserClient, createServerClient, parseCookieHeader } from "@supabase/ssr";
+import { createClient } from "@supabase/supabase-js";
 import type { AstroCookies } from "astro";
 
 export function createSupabaseBrowserClient() {
@@ -30,5 +31,13 @@ export function createSupabaseServerClient(
         },
       },
     }
+  );
+}
+
+// For server-side functions that need direct database access (like RAG)
+export function createSupabaseServiceClient() {
+  return createClient(
+    import.meta.env.PUBLIC_SUPABASE_URL,
+    import.meta.env.PUBLIC_SUPABASE_ANON_KEY
   );
 }

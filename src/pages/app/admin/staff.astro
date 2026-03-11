@@ -1,16 +1,29 @@
 ---
 import MainLayout from "../../../layouts/MainLayout.astro";
 import Section from "../../../components/sections/Section.astro";
-import StaffCard from "../../../components/admin/StaffCard.astro";
 import { createSupabaseServerClient } from "../../../lib/supabase";
 
-const supabase = createSupabaseServerClient(Astro.request, Astro.cookies);
+// Server-side auth check
+const { request, cookies, locals } = Astro;
+
+if (!locals.user || locals.userRole !== 'admin') {
+  return Astro.redirect('/login');
+}
+
+const supabase = createSupabaseServerClient(request, cookies);
 const { data: staff } = await supabase
   .from('staff_members')
-  .select('id, name, role, department, email, phone, room, hours, handles, created_at')
+  .select('id, name, role, department, email, phone, whatsapp, office_location, office_hours, languages, query_categories, urgency_level, status, created_at')
+  .eq('college_name', locals.collegeName)
   .order('created_at', { ascending: false });
 
 const members = staff ?? [];
+
+const queryCategories = [
+  'admissions', 'enrollment', 'fee', 'accounts', 'payments', 'examinations',
+  'results', 'academic', 'placements', 'internships', 'career', 'hostel',
+  'student affairs', 'welfare', 'computer science', 'technical'
+];
 ---
 
 <MainLayout title="Staff Directory — DeskMate Admin" description="Manage the staff directory for DeskMate routing.">
@@ -37,18 +50,66 @@ const members = staff ?? [];
       {members.length > 0 ? (
         <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-5" id="staff-grid">
           {members.map((member) => (
-            <div class="staff-item" data-staff-id={member.id}>
-              <StaffCard
-                id={member.id}
-                name={member.name}
-                role={member.role}
-                department={member.department}
-                email={member.email ?? ''}
-                phone={member.phone ?? ''}
-                room={member.room ?? ''}
-                hours={member.hours ?? ''}
-                handles={member.handles ?? []}
-              />
+            <div class="staff-item bg-white border border-dark rounded-[45px] p-6 shadow-[0px_5px_0px_#191a23]" data-staff-id={member.id}>
+              <div class="flex justify-between items-start mb-4">
+                <div>
+                  <h3 class="text-lg font-medium text-dark">{member.name}</h3>
+                  <p class="text-sm text-[#666]">{member.role}</p>
+                  <p class="text-sm text-[#aaa]">{member.department}</p>
+                </div>
+                <div class="flex gap-2">
+                  <span class={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                    member.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                  }`}>
+                    {member.status}
+                  </span>
+                  <button data-action="delete-staff" class="text-red-500 hover:text-red-700 text-sm">×</button>
+                </div>
+              </div>
+
+              <div class="space-y-2 text-sm text-[#666]">
+                {member.email && <div>📧 {member.email}</div>}
+                {member.phone && <div>📞 {member.phone}</div>}
+                {member.whatsapp && <div>💬 {member.whatsapp}</div>}
+                {member.office_location && <div>📍 {member.office_location}</div>}
+                {member.office_hours && <div>🕒 Hours: {member.office_hours}</div>}
+              </div>
+
+              {member.languages && member.languages.length > 0 && (
+                <div class="mt-3">
+                  <p class="text-xs text-[#aaa] mb-1">Languages:</p>
+                  <div class="flex flex-wrap gap-1">
+                    {member.languages.map((lang: string) => (
+                      <span class="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-800 capitalize">
+                        {lang}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {member.urgency_level && member.urgency_level !== 'normal' && (
+                <div class="mt-3">
+                  <span class={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${
+                    member.urgency_level === 'emergency' ? 'bg-red-100 text-red-800' : 'bg-orange-100 text-orange-800'
+                  }`}>
+                    {member.urgency_level === 'emergency' ? '🚨 Emergency' : '⚡ Urgent'}
+                  </span>
+                </div>
+              )}
+
+              {member.query_categories && member.query_categories.length > 0 && (
+                <div class="mt-4">
+                  <p class="text-xs text-[#aaa] mb-2">Handles:</p>
+                  <div class="flex flex-wrap gap-1">
+                    {member.query_categories.map((cat: string) => (
+                      <span class="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-green-100 text-green-800 capitalize">
+                        {cat}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -82,13 +143,7 @@ const members = staff ?? [];
       </div>
       <div>
         <label class="block text-sm font-medium mb-1">Department</label>
-        <select id="staff-dept" class="w-full border border-dark rounded-[14px] px-4 py-3 text-sm outline-none">
-          <option>Finance</option>
-          <option>Academics</option>
-          <option>Accommodation</option>
-          <option>Administration</option>
-          <option>Resources</option>
-        </select>
+        <input id="staff-dept" type="text" placeholder="e.g. Finance" class="w-full border border-dark rounded-[14px] px-4 py-3 text-sm outline-none" />
       </div>
       <div>
         <label class="block text-sm font-medium mb-1">Email <span class="font-normal text-[#aaa]">(optional)</span></label>
@@ -99,16 +154,55 @@ const members = staff ?? [];
         <input id="staff-phone" type="text" placeholder="+91-40-00000000" class="w-full border border-dark rounded-[14px] px-4 py-3 text-sm outline-none" />
       </div>
       <div>
-        <label class="block text-sm font-medium mb-1">Office Room <span class="font-normal text-[#aaa]">(optional)</span></label>
-        <input id="staff-room" type="text" placeholder="e.g. Admin Block, Room 104" class="w-full border border-dark rounded-[14px] px-4 py-3 text-sm outline-none" />
+        <label class="block text-sm font-medium mb-1">WhatsApp <span class="font-normal text-[#aaa]">(optional)</span></label>
+        <input id="staff-whatsapp" type="text" placeholder="+91-40-00000000" class="w-full border border-dark rounded-[14px] px-4 py-3 text-sm outline-none" />
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1">Office Location <span class="font-normal text-[#aaa]">(optional)</span></label>
+        <input id="staff-location" type="text" placeholder="e.g. Admin Block, Room 104" class="w-full border border-dark rounded-[14px] px-4 py-3 text-sm outline-none" />
       </div>
       <div>
         <label class="block text-sm font-medium mb-1">Office Hours <span class="font-normal text-[#aaa]">(optional)</span></label>
-        <input id="staff-hours" type="text" placeholder="e.g. Mon–Fri, 9 AM – 5 PM" class="w-full border border-dark rounded-[14px] px-4 py-3 text-sm outline-none" />
+        <input id="staff-hours" type="text" placeholder="Mon-Fri 9AM-5PM" class="w-full border border-dark rounded-[14px] px-4 py-3 text-sm outline-none" />
       </div>
+
       <div>
-        <label class="block text-sm font-medium mb-1">Handles <span class="font-normal text-[#aaa]">(comma-separated, optional)</span></label>
-        <input id="staff-handles" type="text" placeholder="e.g. fee payment, fine waiver" class="w-full border border-dark rounded-[14px] px-4 py-3 text-sm outline-none" />
+        <label class="block text-sm font-medium mb-1">Languages Spoken</label>
+        <div class="grid grid-cols-3 gap-2 p-4 border border-dark rounded-[14px]">
+          <label class="flex items-center space-x-2 text-sm">
+            <input type="checkbox" name="languages" value="english" checked class="rounded border-gray-300 text-green-600 focus:ring-green-500">
+            <span>English</span>
+          </label>
+          <label class="flex items-center space-x-2 text-sm">
+            <input type="checkbox" name="languages" value="hindi" class="rounded border-gray-300 text-green-600 focus:ring-green-500">
+            <span>Hindi</span>
+          </label>
+          <label class="flex items-center space-x-2 text-sm">
+            <input type="checkbox" name="languages" value="telugu" class="rounded border-gray-300 text-green-600 focus:ring-green-500">
+            <span>Telugu</span>
+          </label>
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium mb-1">Urgency Level</label>
+        <select id="staff-urgency" class="w-full border border-dark rounded-[14px] px-4 py-3 text-sm outline-none">
+          <option value="normal">Normal Support</option>
+          <option value="urgent">Urgent Issues</option>
+          <option value="emergency">Emergency Contact</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium mb-1">Query Categories <span class="font-normal text-[#aaa]">(select all that apply)</span></label>
+        <div class="grid grid-cols-2 gap-2 p-4 border border-dark rounded-[14px] max-h-40 overflow-y-auto">
+          {queryCategories.map((category: string) => (
+            <label class="flex items-center space-x-2 text-sm">
+              <input type="checkbox" name="categories" value={category} class="rounded border-gray-300 text-green-600 focus:ring-green-500">
+              <span class="capitalize">{category}</span>
+            </label>
+          ))}
+        </div>
       </div>
       <button type="button" id="submit-staff-btn" class="btn-primary w-full rounded-2xl py-4">
         Add Staff Member
@@ -140,16 +234,37 @@ const members = staff ?? [];
     var btn = this;
     var name = document.getElementById('staff-name').value.trim();
     var role = document.getElementById('staff-role').value.trim();
-    var dept = document.getElementById('staff-dept').value;
+    var dept = document.getElementById('staff-dept').value.trim();
     var email = document.getElementById('staff-email').value.trim();
     var phone = document.getElementById('staff-phone').value.trim();
-    var room = document.getElementById('staff-room').value.trim();
-    var hours = document.getElementById('staff-hours').value.trim();
-    var handles = document.getElementById('staff-handles').value.trim();
+    var whatsapp = document.getElementById('staff-whatsapp').value.trim();
+    var office_location = document.getElementById('staff-location').value.trim();
+    var office_hours = document.getElementById('staff-hours').value.trim();
+    var urgency_level = document.getElementById('staff-urgency').value;
     var errEl = document.getElementById('staff-error');
 
-    if (!name || !role) {
-      errEl.textContent = 'Name and role are required.';
+    // Get selected categories
+    var selectedCategories = Array.from(document.querySelectorAll('input[name="categories"]:checked'))
+      .map(checkbox => checkbox.value);
+
+    // Get selected languages
+    var selectedLanguages = Array.from(document.querySelectorAll('input[name="languages"]:checked'))
+      .map(checkbox => checkbox.value);
+
+    if (!name || !role || !dept) {
+      errEl.textContent = 'Name, role, and department are required.';
+      errEl.classList.remove('hidden');
+      return;
+    }
+
+    if (selectedCategories.length === 0) {
+      errEl.textContent = 'Please select at least one query category.';
+      errEl.classList.remove('hidden');
+      return;
+    }
+
+    if (selectedLanguages.length === 0) {
+      errEl.textContent = 'Please select at least one language.';
       errEl.classList.remove('hidden');
       return;
     }
@@ -161,7 +276,20 @@ const members = staff ?? [];
       var res = await fetch('/api/admin/staff', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name, role: role, department: dept, email: email, phone: phone, room: room, hours: hours, handles: handles }),
+        body: JSON.stringify({
+          name: name,
+          role: role,
+          department: dept,
+          email: email,
+          phone: phone,
+          whatsapp: whatsapp,
+          office_location: office_location,
+          office_hours: office_hours,
+          query_categories: selectedCategories,
+          languages: selectedLanguages,
+          urgency_level: urgency_level,
+          status: 'active'
+        }),
       });
       var data = await res.json();
       if (data.ok) { closeStaffModal(); window.location.reload(); }

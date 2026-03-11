@@ -4,18 +4,26 @@ import Section from "../../../components/sections/Section.astro";
 import Card from "../../../components/ui/Card.astro";
 import { createSupabaseServerClient } from "../../../lib/supabase";
 
-const supabase = createSupabaseServerClient(Astro.request, Astro.cookies);
+// Server-side auth check
+const { request, cookies, locals } = Astro;
+
+if (!locals.user || locals.userRole !== 'admin') {
+  return Astro.redirect('/login');
+}
+
+const supabase = createSupabaseServerClient(request, cookies);
 
 const [
   { count: docCount },
   { count: staffCount },
   { data: recentDocs },
 ] = await Promise.all([
-  supabase.from('documents').select('*', { count: 'exact', head: true }),
-  supabase.from('staff_members').select('*', { count: 'exact', head: true }),
+  supabase.from('documents').select('*', { count: 'exact', head: true }).eq('college_name', locals.collegeName),
+  supabase.from('staff_members').select('*', { count: 'exact', head: true }).eq('college_name', locals.collegeName),
   supabase
     .from('documents')
     .select('id, name, category, created_at, status')
+    .eq('college_name', locals.collegeName)
     .order('created_at', { ascending: false })
     .limit(5),
 ]);

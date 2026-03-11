@@ -38,7 +38,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 
     const { data: codeRow, error: codeError } = await supabase
       .from('admin_access_codes')
-      .select('id, is_used')
+      .select('id, is_used, college_name')
       .eq('code', accessCode.toUpperCase())
       .single();
 
@@ -52,6 +52,13 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     if (codeRow.is_used) {
       return new Response(
         JSON.stringify({ ok: false, error: 'This access code has already been used.' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (codeRow.college_name !== college) {
+      return new Response(
+        JSON.stringify({ ok: false, error: 'This access code does not belong to the selected college.' }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
       );
     }

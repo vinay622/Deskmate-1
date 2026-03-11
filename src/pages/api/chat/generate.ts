@@ -20,6 +20,7 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
 
   const query = (body.query as string)?.trim();
   const agent = (body.agent as string) || 'general';
+  const history: Array<{ role: string; content: string }> = Array.isArray(body.history) ? body.history : [];
 
   if (!query) {
     return new Response(JSON.stringify({ ok: false, error: 'query is required' }), {
@@ -31,7 +32,7 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
   let chunks: SearchResult[] = [];
   try {
     const queryEmbedding = await embedSingleText(query);
-    chunks = await searchChunks(queryEmbedding, 0.45, 5);
+    chunks = await searchChunks(queryEmbedding, 0.45, 5, locals.collegeName ?? undefined);
   } catch (embErr: any) {
     console.error('Embedding/search error (continuing without context):', embErr?.message || embErr);
   }
@@ -41,7 +42,7 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        for await (const chunk of generateResponseStream(query, chunks, agent)) {
+        for await (const chunk of generateResponseStream(query, chunks, agent, history, locals.collegeName ?? undefined, request, cookies)) {
           controller.enqueue(encoder.encode(JSON.stringify(chunk) + '\n'));
         }
       } catch (err: any) {

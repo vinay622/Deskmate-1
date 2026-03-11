@@ -5,9 +5,11 @@ import DocumentCard from "../../../components/admin/DocumentCard.astro";
 import { createSupabaseServerClient } from "../../../lib/supabase";
 
 const supabase = createSupabaseServerClient(Astro.request, Astro.cookies);
+const collegeName = Astro.locals.collegeName ?? '';
 const { data: documents } = await supabase
   .from('documents')
   .select('id, name, category, description, uploaded_by_name, expiry_date, status, file_type, processing_status, created_at')
+  .eq('college_name', collegeName)
   .order('created_at', { ascending: false });
 
 const docs = documents ?? [];

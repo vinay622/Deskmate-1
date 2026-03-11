@@ -59,7 +59,8 @@ export async function upsertDocumentChunks(
   docName: string,
   docCategory: string,
   chunks: Array<{ content: string; chunkIndex: number }>,
-  embeddings: number[][]
+  embeddings: number[][],
+  collegeName: string
 ): Promise<void> {
   const index = getPineconeIndex();
   const vectors = chunks.map((chunk, i) => ({
@@ -69,6 +70,7 @@ export async function upsertDocumentChunks(
       documentId: docId,
       documentName: docName,
       documentCategory: docCategory,
+      collegeName,
       content: chunk.content,
       chunkIndex: chunk.chunkIndex,
     },
@@ -91,7 +93,8 @@ export async function deleteDocumentVectors(docId: string): Promise<void> {
 export async function queryIndex(
   queryEmbedding: number[],
   topK: number = 5,
-  scoreThreshold: number = 0.5
+  scoreThreshold: number = 0.5,
+  collegeName?: string
 ): Promise<Array<{
   id: string;
   document_id: string;
@@ -102,10 +105,16 @@ export async function queryIndex(
   document_category: string;
 }>> {
   const index = getPineconeIndex();
+
+  const filter = collegeName
+    ? { collegeName: { $eq: collegeName } }
+    : undefined;
+
   const results = await index.query({
     vector: queryEmbedding,
     topK,
     includeMetadata: true,
+    filter,
   });
   return (results.matches ?? [])
     .filter((m) => (m.score ?? 0) >= scoreThreshold)
