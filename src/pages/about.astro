@@ -24,19 +24,24 @@ const problems = [
 
 const team = [
   {
-    name: "Vinay Reddy",
-    role: "Founder & Product Lead",
-    description: "Experienced the problem first-hand during college. Built DeskMate to ensure no student wastes time hunting for information that should be instantly accessible.",
+    name: "Adimulam Vinay",
+    role: "Founder & Developer",
+    description: "Visionary behind DeskMate who experienced the college information problem firsthand. Leads the technical development and product strategy to ensure every student has instant access to accurate information.",
   },
   {
-    name: "Priya Das",
-    role: "AI Engineer",
-    description: "Designed the document indexing and keyword-matching engine that powers DeskMate's no-hallucination guarantee. Expert in RAG pipelines and information retrieval.",
+    name: "Arutla Sowmya",
+    role: "Documentation & Lead",
+    description: "Ensures clear documentation and leads project coordination across teams. Manages the knowledge base that makes DeskMate's document indexing accurate and comprehensive.",
   },
   {
-    name: "Sai Kumar",
-    role: "Full Stack Developer",
-    description: "Built the admin portal, document management system, and real-time chat interface. Focused on making the product fast, reliable, and simple to deploy.",
+    name: "Janga Karthik Yadav",
+    role: "Resource Manager",
+    description: "Oversees resource allocation and project timelines to ensure smooth deployment across colleges. Coordinates with institutions to streamline DeskMate implementation processes.",
+  },
+  {
+    name: "Hemanth",
+    role: "Resource Manager",
+    description: "Manages operational resources and supports college partnerships. Focuses on training programs and ensuring seamless integration of DeskMate into existing college systems.",
   },
 ];
 ---
@@ -123,10 +128,10 @@ const team = [
         sectionTitle="The Team"
         description="People who got frustrated by the college information problem and decided to solve it."
       />
-      <div class="grid sm:grid-cols-3 gap-5">
-        {team.map((member) => (
+      <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        {team.map((member, index) => (
           <Card isUnderline={true}>
-            <div class="bg-gray rounded-[45px] p-8">
+            <div class="bg-gray rounded-[45px] p-8 team-card" data-index={index}>
               <div class="w-16 h-16 rounded-full bg-dark flex items-center justify-center mb-4">
                 <span class="text-green text-2xl font-medium">{member.name.charAt(0)}</span>
               </div>
@@ -141,3 +146,69 @@ const team = [
     </div>
   </Section>
 </MainLayout>
+
+<style>
+  .team-card {
+    opacity: 0;
+    transform: translateX(-50px);
+    transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+  }
+
+  .team-card[data-index="0"] {
+    transform: translateX(-80px);
+  }
+
+  .team-card[data-index="1"] {
+    transform: translateX(-60px);
+  }
+
+  .team-card[data-index="2"] {
+    transform: translateX(60px);
+  }
+
+  .team-card[data-index="3"] {
+    transform: translateX(80px);
+  }
+
+  .team-card.animate {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  .team-card.animate[data-index="0"] {
+    transition-delay: 0.1s;
+  }
+
+  .team-card.animate[data-index="1"] {
+    transition-delay: 0.2s;
+  }
+
+  .team-card.animate[data-index="2"] {
+    transition-delay: 0.3s;
+  }
+
+  .team-card.animate[data-index="3"] {
+    transition-delay: 0.4s;
+  }
+</style>
+
+<script is:inline>
+  document.addEventListener('DOMContentLoaded', function() {
+    const teamCards = document.querySelectorAll('.team-card');
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('animate');
+        }
+      });
+    }, {
+      threshold: 0.2,
+      rootMargin: '0px 0px -100px 0px'
+    });
+
+    teamCards.forEach((card) => {
+      observer.observe(card);
+    });
+  });
+</script>

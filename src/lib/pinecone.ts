@@ -63,21 +63,28 @@ export async function upsertDocumentChunks(
   collegeName: string
 ): Promise<void> {
   const index = getPineconeIndex();
-  const vectors = chunks.map((chunk, i) => ({
-    id: `${docId}_${chunk.chunkIndex}`,
-    values: embeddings[i],
-    metadata: {
-      documentId: docId,
-      documentName: docName,
-      documentCategory: docCategory,
-      collegeName,
-      content: chunk.content,
-      chunkIndex: chunk.chunkIndex,
-    },
-  }));
-  // Upsert in batches of 100 (Pinecone limit)
-  for (let i = 0; i < vectors.length; i += 100) {
-    await index.upsert({ records: vectors.slice(i, i + 100) });
+
+  // Process in batches to avoid loading all vectors in memory at once
+  const BATCH_SIZE = 100;
+  for (let i = 0; i < chunks.length; i += BATCH_SIZE) {
+    const batchChunks = chunks.slice(i, i + BATCH_SIZE);
+    const batchEmbeddings = embeddings.slice(i, i + BATCH_SIZE);
+
+    const vectors = batchChunks.map((chunk, idx) => ({
+      id: `${docId}_${chunk.chunkIndex}`,
+      values: batchEmbeddings[idx],
+      metadata: {
+        documentId: docId,
+        documentName: docName,
+        documentCategory: docCategory,
+        collegeName,
+        content: chunk.content,
+        chunkIndex: chunk.chunkIndex,
+      },
+    }));
+
+    await index.upsert({ records: vectors });
+    console.log(`[pinecone] Upserted batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(chunks.length / BATCH_SIZE)}`);
   }
 }
 

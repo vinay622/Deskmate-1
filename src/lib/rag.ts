@@ -50,13 +50,17 @@ export interface EscalationResult {
 const QUERY_CATEGORIES = [
   'admissions', 'enrollment', 'fee', 'accounts', 'payments', 'examinations',
   'results', 'academic', 'placements', 'internships', 'career', 'hostel',
-  'student affairs', 'welfare', 'computer science', 'technical'
+  'student affairs', 'welfare', 'computer science', 'technical',
+  'sports', 'library', 'transport', 'scholarship', 'maintenance', 'security',
+  'counseling', 'health', 'medical', 'canteen', 'lab', 'workshop'
 ];
 
 const EXPLICIT_CONTACT_TRIGGERS = [
   'contact', 'talk to', 'speak with', 'reach out', 'get in touch',
-  'staff member', 'officer', 'administration', 'office', 'call', 'email',
-  'who can help', 'who handles', 'department', 'person responsible'
+  'staff member', 'staff', 'officer', 'administration', 'office', 'call', 'email',
+  'who can help', 'who handles', 'department', 'person responsible',
+  'faculty', 'professor', 'teacher', 'hod', 'dean', 'coordinator',
+  'who is', 'tell me about staff', 'available staff'
 ];
 
 const SENSITIVE_TRIGGERS = [
@@ -178,17 +182,67 @@ export async function extractText(
 }
 
 // Cached module references to avoid re-importing heavy libs on every request
-let _pdfParse: ((buf: Buffer) => Promise<{ text: string }>) | null = null;
 let _mammoth: typeof import("mammoth") | null = null;
 
-async function extractPdfText(file: File): Promise<string> {
-  if (!_pdfParse) {
-    const mod = await import("pdf-parse");
-    _pdfParse = ((mod as any).default ?? mod) as (buf: Buffer) => Promise<{ text: string }>;
+// Retry helper for Gemini API rate limits
+async function retryGeminiCall<T>(fn: () => Promise<T>, maxRetries: number = 3): Promise<T> {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error: any) {
+      const isRateLimit = error?.message?.includes('503') ||
+                         error?.message?.includes('429') ||
+                         error?.message?.includes('high demand') ||
+                         error?.message?.includes('UNAVAILABLE');
+
+      if (isRateLimit && attempt < maxRetries) {
+        const delay = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s
+        console.log(`[rag] Rate limited (attempt ${attempt}/${maxRetries}), retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+      throw error;
+    }
   }
-  const buffer = Buffer.from(await file.arrayBuffer());
-  const data = await _pdfParse(buffer);
-  return data.text;
+  throw new Error('Max retries exceeded');
+}
+
+async function extractPdfText(file: File): Promise<string> {
+  // Hard limit: 5MB to prevent OOM during base64 conversion
+  if (file.size > 5 * 1024 * 1024) {
+    throw new Error(`PDF too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Maximum is 5MB.`);
+  }
+  console.log(`[rag] Processing PDF: ${file.name}, ${(file.size / 1024 / 1024).toFixed(1)}MB`);
+  const ai = getGeminiClient();
+  console.log(`[rag] Converting to base64...`);
+  let base64: string | null = Buffer.from(await file.arrayBuffer()).toString("base64");
+  console.log(`[rag] Base64 size: ${(base64.length / 1024 / 1024).toFixed(1)}MB`);
+  console.log(`[rag] Sending to Gemini...`);
+
+  const response = await retryGeminiCall(async () => {
+    return await ai.models.generateContent({
+      model: GENERATION_MODEL,
+      contents: [
+        {
+          role: "user",
+          parts: [
+            { text: "Extract all text from this PDF clearly." },
+            {
+              inlineData: {
+                mimeType: "application/pdf",
+                data: base64!,
+              },
+            },
+          ],
+        },
+      ],
+    });
+  });
+
+  base64 = null; // free memory before returning
+
+  console.log(`[rag] Received response: ${response.text?.length || 0} chars`);
+  return response.text ?? "";
 }
 
 async function extractDocxText(file: File): Promise<string> {
@@ -203,24 +257,26 @@ async function extractDocxText(file: File): Promise<string> {
 async function extractImageText(file: File): Promise<string> {
   const ai = getGeminiClient();
   const base64 = Buffer.from(await file.arrayBuffer()).toString("base64");
-  const response = await ai.models.generateContent({
-    model: GENERATION_MODEL,
-    contents: [
-      {
-        role: "user",
-        parts: [
-          {
-            inlineData: {
-              mimeType: file.type,
-              data: base64,
+  const response = await retryGeminiCall(async () => {
+    return await ai.models.generateContent({
+      model: GENERATION_MODEL,
+      contents: [
+        {
+          role: "user",
+          parts: [
+            {
+              inlineData: {
+                mimeType: file.type,
+                data: base64,
+              },
             },
-          },
-          {
-            text: "Extract ALL text from this image. Return only the extracted text, no commentary.",
-          },
-        ],
-      },
-    ],
+            {
+              text: "Extract ALL text from this image. Return only the extracted text, no commentary.",
+            },
+          ],
+        },
+      ],
+    });
   });
   return response.text ?? "";
 }
@@ -233,39 +289,16 @@ export function chunkText(
   overlap: number = 200
 ): ChunkResult[] {
   const cleaned = text.replace(/\s+/g, " ").trim();
-
   if (cleaned.length === 0) return [];
-  if (cleaned.length <= chunkSize) {
-    return [{ content: cleaned, chunkIndex: 0 }];
-  }
 
+  const step = chunkSize - overlap; // advance by 800 each iteration
   const chunks: ChunkResult[] = [];
-  let start = 0;
-  let index = 0;
 
-  while (start < cleaned.length) {
-    let end = start + chunkSize;
-
-    // Try to break at a sentence boundary
-    if (end < cleaned.length) {
-      const lastPeriod = cleaned.lastIndexOf(". ", end);
-      const lastNewline = cleaned.lastIndexOf("\n", end);
-      const breakPoint = Math.max(lastPeriod, lastNewline);
-      if (breakPoint > start + chunkSize * 0.5) {
-        end = breakPoint + 1;
-      }
-    } else {
-      end = cleaned.length;
-    }
-
+  for (let i = 0; i < cleaned.length; i += step) {
     chunks.push({
-      content: cleaned.slice(start, end).trim(),
-      chunkIndex: index,
+      content: cleaned.slice(i, i + chunkSize).trim(),
+      chunkIndex: chunks.length,
     });
-
-    start = end - overlap;
-    if (start >= cleaned.length) break;
-    index++;
   }
 
   return chunks;
@@ -273,13 +306,14 @@ export function chunkText(
 
 // ─── 3. Generate Embeddings ─────────────────────────────────
 
-const EMBED_BATCH_SIZE = 20;
+const EMBED_BATCH_SIZE = 10; // Reduced from 20 to minimize memory pressure
 
 export async function embedText(texts: string[]): Promise<number[][]> {
   // Batch to avoid sending too many texts at once (memory + API limits)
   const allEmbeddings: number[][] = [];
   for (let i = 0; i < texts.length; i += EMBED_BATCH_SIZE) {
     const batch = texts.slice(i, i + EMBED_BATCH_SIZE);
+    console.log(`[rag] Embedding batch ${Math.floor(i / EMBED_BATCH_SIZE) + 1}/${Math.ceil(texts.length / EMBED_BATCH_SIZE)}`);
     const batchEmbeddings = await generateEmbeddings(batch, "passage");
     allEmbeddings.push(...batchEmbeddings);
   }
@@ -420,8 +454,8 @@ async function* generateEscalationResponse(
       await new Promise(resolve => setTimeout(resolve, 30));
     }
 
-    if (category && collegeName) {
-      const staffMembers = await getStaffFromCategory(category, collegeName, language, isUrgent, currentTime, request, cookies);
+    if (collegeName) {
+      const staffMembers = await getStaffFromCategory(category, collegeName, language, isUrgent, currentTime, request, cookies, query);
 
       if (staffMembers.length > 0) {
         let staffText = `\n\n**Available Staff:**\n\n`;
@@ -502,13 +536,14 @@ async function* generateEscalationResponse(
 
 // Enhanced staff fetching with real database integration
 async function getStaffFromCategory(
-  category: string,
+  category: string | null,
   collegeName: string,
   userLanguage?: string,
   isUrgent?: boolean,
   currentTime?: Date,
   request?: Request,
-  cookies?: import('astro').AstroCookies
+  cookies?: import('astro').AstroCookies,
+  searchQuery?: string
 ): Promise<StaffMember[]> {
   try {
     let supabase;
@@ -522,12 +557,38 @@ async function getStaffFromCategory(
       supabase = createSupabaseServiceClient();
     }
 
+    // First, try name-based search if the query mentions a specific person
+    if (searchQuery) {
+      const words = searchQuery.toLowerCase().replace(/[^a-z\s]/g, '').split(/\s+/).filter(w => w.length > 2);
+      // Filter out common words that aren't names
+      const stopWords = ['who', 'what', 'where', 'how', 'the', 'about', 'tell', 'can', 'contact', 'staff', 'member', 'talk', 'speak', 'with', 'get', 'touch', 'reach', 'help', 'need', 'want', 'know', 'find', 'details', 'info', 'information', 'available', 'faculty', 'professor', 'teacher', 'charge', 'head', 'manage', 'manager', 'responsible', 'handles', 'person', 'department', 'office', 'officer', 'coordinator', 'dean', 'hod', ...QUERY_CATEGORIES];
+      const nameWords = words.filter(w => !stopWords.includes(w));
+
+      if (nameWords.length > 0) {
+        // Search for staff matching any of the name words
+        const { data: nameMatches } = await supabase
+          .from('staff_members')
+          .select('name, department, role, email, phone, whatsapp, office_location, office_hours, languages, urgency_level')
+          .eq('college_name', collegeName)
+          .eq('status', 'active')
+          .or(nameWords.map(w => `name.ilike.%${w}%`).join(','));
+
+        if (nameMatches && nameMatches.length > 0) {
+          return nameMatches;
+        }
+      }
+    }
+
     let query = supabase
       .from('staff_members')
       .select('name, department, role, email, phone, whatsapp, office_location, office_hours, languages, urgency_level')
       .eq('college_name', collegeName)
-      .eq('status', 'active')
-      .contains('query_categories', [category.toLowerCase()]);
+      .eq('status', 'active');
+
+    // Only filter by category if one was detected
+    if (category) {
+      query = query.contains('query_categories', [category.toLowerCase()]);
+    }
 
     // Language-based filtering
     if (userLanguage && userLanguage !== 'english') {
@@ -671,21 +732,23 @@ export async function generateResponse(
     userPrompt = `[Student is asking in the context of: ${agentHint}]\n\n${query}`;
   }
 
-  const response = await ai.models.generateContent({
-    model: GENERATION_MODEL,
-    contents: [
-      {
-        role: "user",
-        parts: [
-          { text: contextBlock + "\n\nStudent question: " + userPrompt },
-        ],
+  const response = await retryGeminiCall(async () => {
+    return await ai.models.generateContent({
+      model: GENERATION_MODEL,
+      contents: [
+        {
+          role: "user",
+          parts: [
+            { text: contextBlock + "\n\nStudent question: " + userPrompt },
+          ],
+        },
+      ],
+      config: {
+        systemInstruction: SYSTEM_PROMPT,
+        temperature: 0.5,
+        maxOutputTokens: 1024,
       },
-    ],
-    config: {
-      systemInstruction: SYSTEM_PROMPT,
-      temperature: 0.5,
-      maxOutputTokens: 1024,
-    },
+    });
   });
 
   const answer =

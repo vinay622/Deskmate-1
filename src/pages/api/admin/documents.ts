@@ -42,8 +42,8 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
       });
     }
 
-    if (file.size > 10 * 1024 * 1024) {
-      return new Response(JSON.stringify({ ok: false, error: 'File must be under 10MB' }), {
+    if (file.size > 5 * 1024 * 1024) {
+      return new Response(JSON.stringify({ ok: false, error: 'File must be under 5MB' }), {
         status: 400, headers: { 'Content-Type': 'application/json' },
       });
     }
@@ -116,9 +116,10 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
 
     // Step 4: Chunk the text, then release the full text
     const chunks = chunkText(extractedText, 1000, 200);
+    console.log(`[documents] Created ${chunks.length} chunks from ${extractedText.length} chars`);
     extractedText = ''; // free memory
 
-    // Step 5: Generate embeddings (batched internally, 20 at a time)
+    // Step 5: Generate embeddings (batched internally, 10 at a time)
     const chunkTexts = chunks.map((c) => c.content);
     let embeddings: number[][];
     try {

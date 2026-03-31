@@ -1,12 +1,10 @@
 ---
-import ShortForm from "../ui/ShortForm.astro";
 
 const links = [
   { name: "Home", href: "/" },
   { name: "Features", href: "/#features" },
   { name: "How It Works", href: "/#how-it-works" },
   { name: "About", href: "/about" },
-  { name: "Contact", href: "/contact" },
   { name: "Open App", href: "/app/chat" },
 ];
 ---
@@ -29,21 +27,6 @@ const links = [
             ))}
           </ul>
           <div class="flex gap-4 items-center">
-            <a href="mailto:support@deskmate.app" class="text-green underline text-sm">support@deskmate.app</a>
-          </div>
-        </div>
-
-        <div class="flex flex-col lg:flex-row mt-[66px] mb-[51px]">
-          <div class="flex text-center lg:text-start flex-col w-full lg:w-[30%]">
-            <h3 class="mb-5 text-center md:text-left text-2xl text-green">Contact us</h3>
-            <div class="flex flex-col justify-between gap-4">
-              <span>Email: support@deskmate.app</span>
-              <span>Partnerships: partnerships@deskmate.app</span>
-              <span class="lg:w-3/4">Response time: within 24 hours on working days</span>
-            </div>
-          </div>
-          <div class="flex-grow my-10 lg:my-0 lg:ml-12">
-            <ShortForm />
           </div>
         </div>
       </div>
